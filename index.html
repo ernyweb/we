@@ -11,21 +11,27 @@
 </head>
 <body>
   <div id="menu" class="overlay">
-    <button id="lobbySettingsBtn" style="position:absolute;left:350px;top:8px;z-index:1210;background:transparent;color:#bcd4ff;border:0;cursor:pointer">Settings</button>
-    <div style="text-align:center">
-      <h1>Runner3D Beta</h1>
-      <div id="menuCharacter" style="width:220px;height:220px;margin:12px auto 6px auto;display:flex;align-items:center;justify-content:center" aria-label="Player preview">
-        <!-- 3D preview canvas is created dynamically by the game scripts -->
+    <div class="menu-card">
+      <div class="menu-header">
+        <button id="lobbySettingsBtn" class="ghost-btn">Settings</button>
       </div>
-      <p id="menuText">Use Left/Right arrows or touch left/right halves to change lanes. Avoid obstacles and survive as long as you can.!</p>
-      <div style="margin-top:8px;display:flex;gap:10px;justify-content:center;align-items:center">
-        <button id="menuSignBtn" style="background:transparent;color:#bcd4ff;border:0;cursor:pointer">Sign in</button>
-        <button id="menuRegisterBtn" style="background:transparent;color:#bcd4ff;border:0;cursor:pointer">Register</button>
+      <div class="menu-body">
+        <h1>Runner3D Beta</h1>
+        <div id="menuCharacter" class="menu-character" aria-label="Player preview">
+          <!-- 3D preview canvas is created dynamically by the game scripts -->
+        </div>
+        <p id="menuText">Use Left/Right arrows or touch left/right halves to change lanes. Avoid obstacles and survive as long as you can.!</p>
+        <div class="menu-auth">
+          <button id="menuSignBtn" class="ghost-btn">Sign in</button>
+          <button id="menuRegisterBtn" class="ghost-btn">Register</button>
+        </div>
       </div>
+      <div class="menu-actions">
+        <button id="lobbyPlayBtn" class="primary-btn">Play</button>
+        <button id="menuGuestSmall" class="ghost-btn">Continue as Guest</button>
+      </div>
+      <p id="best">Best: 0</p>
     </div>
-    <div style="position:absolute;right:400px;top:600px;z-index:1210"><button id="lobbyPlayBtn" style="padding:10px 60px;border-radius:50px">Play</button></div>
-    <div style="position:absolute;left:18px;bottom:18px;z-index:1210"><button id="menuGuestSmall" style="background:transparent;color:#bcd4ff;border:0;cursor:pointer">Continue as Guest</button></div>
-    <p id="best">Best: 0</p>
   </div>
 
 
@@ -98,8 +104,6 @@
   <!-- Leaderboard / Account info top-right -->
   <div id="topPanel" class="top-panel">
     <div id="userBox" class="user-box"><button id="openAuth">Sign in</button></div>
-
-    <div id="leaderboard" class="leaderboard"><h4>Top Players</h4><ol id="leaders"></ol></div>
   </div>
 
   <!-- Target banner shown briefly when a run starts, plus a small persistent pill -->

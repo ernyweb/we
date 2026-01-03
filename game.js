@@ -1429,17 +1429,23 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
   // pick a run target and show banner when play starts
   if(playBtn) playBtn.addEventListener('click', ()=>{
     if(!currentUser){ authModal.style.display = 'flex'; menu.style.display='none'; try{ stopLobbyAudio(); }catch(e){} }
-    else { try{ playPlaySound(); }catch(e){} const t = pickRandomTarget(); showTargetBanner(t); reset(); start(); }
+    else {
+      try{ playPlaySound(); }catch(e){}
+      const t = pickRandomTarget();
+      reset();
+      showTargetBanner(t);
+      start();
+    }
   });
   if(howBtn) howBtn.addEventListener('click', ()=>{ alert(t('controls_text')); });
 
   // Lobby and settings buttons
   const lobbyPlay = document.getElementById('lobbyPlayBtn');
-  if(lobbyPlay) lobbyPlay.addEventListener('click', async ()=>{ try{ if(!currentUser) await guestAuto(); try{ playPlaySound(); }catch(e){} menu.style.display='none'; const t = pickRandomTarget(); showTargetBanner(t); reset(); start(); }catch(e){ try{ playPlaySound(); }catch(e){} menu.style.display='none'; const t = pickRandomTarget(); showTargetBanner(t); reset(); start(); } });
+  if(lobbyPlay) lobbyPlay.addEventListener('click', async ()=>{ try{ if(!currentUser) await guestAuto(); try{ playPlaySound(); }catch(e){} menu.style.display='none'; const t = pickRandomTarget(); reset(); showTargetBanner(t); start(); }catch(e){ try{ playPlaySound(); }catch(e){} menu.style.display='none'; const t = pickRandomTarget(); reset(); showTargetBanner(t); start(); } });
   const lobbySettings = document.getElementById('lobbySettingsBtn');
   if(lobbySettings) lobbySettings.addEventListener('click', ()=>{ populateSettingsUI(); const sm = document.getElementById('settingsModal'); if(sm) sm.style.display='flex'; });
   const menuGuestSmall = document.getElementById('menuGuestSmall');
-  if(menuGuestSmall) menuGuestSmall.addEventListener('click', async ()=>{ try{ await guestAuto(); menu.style.display='none'; const t = pickRandomTarget(); showTargetBanner(t); reset(); start(); }catch(e){ menu.style.display='none'; const t = pickRandomTarget(); showTargetBanner(t); reset(); start(); } });
+  if(menuGuestSmall) menuGuestSmall.addEventListener('click', async ()=>{ try{ await guestAuto(); menu.style.display='none'; const t = pickRandomTarget(); reset(); showTargetBanner(t); start(); }catch(e){ menu.style.display='none'; const t = pickRandomTarget(); reset(); showTargetBanner(t); start(); } });
 
   // Settings modal controls
   const applySettingsBtn = document.getElementById('applySettingsBtn');
