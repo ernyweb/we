@@ -18,6 +18,10 @@
         <!-- 3D preview canvas is created dynamically by the game scripts -->
       </div>
       <p id="menuText">Use Left/Right arrows or touch left/right halves to change lanes. Avoid obstacles and survive as long as you can.!</p>
+      <div style="margin-top:8px;display:flex;gap:10px;justify-content:center;align-items:center">
+        <button id="menuSignBtn" style="background:transparent;color:#bcd4ff;border:0;cursor:pointer">Sign in</button>
+        <button id="menuRegisterBtn" style="background:transparent;color:#bcd4ff;border:0;cursor:pointer">Register</button>
+      </div>
     </div>
     <div style="position:absolute;right:400px;top:600px;z-index:1210"><button id="lobbyPlayBtn" style="padding:10px 60px;border-radius:50px">Play</button></div>
     <div style="position:absolute;left:18px;bottom:18px;z-index:1210"><button id="menuGuestSmall" style="background:transparent;color:#bcd4ff;border:0;cursor:pointer">Continue as Guest</button></div>
@@ -96,6 +100,22 @@
     <div id="userBox" class="user-box"><button id="openAuth">Sign in</button></div>
 
     <div id="leaderboard" class="leaderboard"><h4>Top Players</h4><ol id="leaders"></ol></div>
+  </div>
+
+  <!-- Target banner shown briefly when a run starts, plus a small persistent pill -->
+  <div id="targetBanner" style="display:none" aria-hidden="true">
+    <div class="finish-bar">
+      <div id="targetText" class="target-text">Escape from: <strong id="targetName">ZOMBIE</strong></div>
+      <img id="targetImg" class="target-img" src="" alt="target" />
+    </div>
+    <div id="targetProgress" class="target-progress">
+      <div class="tp-label">Target</div>
+      <div class="tp-bar"><div id="tpFill" class="tp-fill"></div></div>
+      <div class="tp-text"><span id="tpVal">0</span> / <span id="tpGoal">1500</span> m</div>
+    </div>
+  </div>
+  <div id="targetPill" style="display:none" aria-hidden="true">
+    <img id="pillImg" src="" alt="target" /><span id="pillName"></span>
   </div>
 
   <script>

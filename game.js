@@ -22,6 +22,12 @@
   const audioToggle = document.getElementById('audioToggle');
   const audioVol = document.getElementById('audioVol');
   const christmasToggle = document.getElementById('christmasToggle');
+  const targetProg = document.getElementById('targetProgress');
+  const tpFill = document.getElementById('tpFill');
+  const tpVal = document.getElementById('tpVal');
+  const tpGoal = document.getElementById('tpGoal');
+  const targetBannerEl = document.getElementById('targetBanner');
+  const finishBarEl = targetBannerEl ? targetBannerEl.querySelector('.finish-bar') : null;
 
   let scene, camera, renderer, playerMesh, obstacles = [], clock, speed, spawnTimer, score, running, best;
 let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animId: null };
@@ -55,6 +61,12 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
   let musicVolume = 0.6;
   // audio element for play SFX
   let playSfx = null; 
+
+  // Day/night and distance progress
+  let hemiLight = null, dirLight = null, moonLight = null;
+  let sunMesh = null, moonMesh = null;
+  let dayTimer = 0; const DAY_LENGTH = 140; // seconds for a full cycle
+  let distanceRun = 0; let distanceGoal = 1500; const DIST_MIN = 1200, DIST_MAX = 2200;
   
   // Jump / vertical physics
   let playerVy = 0;
@@ -80,7 +92,7 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
   const ZOMBIE_TYPES = [
     { key: 'plantzombie', path: 'zm/plantzombie.png', label: 'Plant Zombie' },
     { key: 'stevezombie', path: 'zm/stevezombie.png', label: 'Steve Zombie' },
-    { key: 'tralalelozombie', path: 'zm/tralalelozombie.jpg', label: 'Tralale Zombie' },
+    { key: 'tralalelozombie', path: 'zm/tralalelozombie.jpg', label: 'Tralalelo Zombie' },
     { key: 'sahurzombie', path: 'zm/sahurzombie.jpg', label: 'Sahur Zombie' }
   ];
   // mapping of key -> texture
@@ -269,9 +281,18 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
       );
     });
 
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.9);
-    hemi.position.set(0, 50, 0); scene.add(hemi);
-    const dir = new THREE.DirectionalLight(0xffffff, 0.6); dir.position.set(-5,10,5); scene.add(dir);
+    hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.9);
+    hemiLight.position.set(0, 50, 0); scene.add(hemiLight);
+    dirLight = new THREE.DirectionalLight(0xfff4cc, 0.8); dirLight.position.set(-5,10,5); scene.add(dirLight);
+    moonLight = new THREE.DirectionalLight(0x88aaff, 0.1); moonLight.position.set(5,4,-3); scene.add(moonLight);
+
+    // simple sun/moon visuals
+    const sphereGeo = new THREE.SphereGeometry(0.6, 12, 12);
+    const sunMat = new THREE.MeshBasicMaterial({color:0xfff4aa, emissive:0xfff4aa, emissiveIntensity:1.2});
+    const moonMat = new THREE.MeshBasicMaterial({color:0xbcd2ff, emissive:0xbcd2ff, emissiveIntensity:0.6});
+    sunMesh = new THREE.Mesh(sphereGeo, sunMat); moonMesh = new THREE.Mesh(sphereGeo, moonMat);
+    sunMesh.position.set(-6,6,-8); moonMesh.position.set(6,3,-8);
+    scene.add(sunMesh); scene.add(moonMesh);
 
     
     const gMat = new THREE.MeshStandardMaterial({color:0x05203a, roughness:0.9});
@@ -841,12 +862,19 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
     speed = 8; 
     spawnTimer = 0;
     score = 0;
+    distanceRun = 0; distanceGoal = DIST_MIN + Math.random() * (DIST_MAX - DIST_MIN); dayTimer = 0;
+    updateTargetProgressUI();
     running = false;
     currentLane = 1; targetX = lanes[currentLane];
     best = parseInt(localStorage.getItem('runner3d_best')||'0',10);
     const bv = document.getElementById('bestValue'); if(bv) bv.textContent = best;
     scoreEl.textContent = '0';
     playerMesh.position.set(targetX, 0.7, 3.2);
+
+    // hide target UI until banner shows at start
+    if(targetProg) targetProg.style.display = 'none';
+    if(targetBannerEl) targetBannerEl.style.display = 'none';
+    if(finishBarEl) finishBarEl.style.display = 'none';
     
     updateUserUI();
   }
@@ -906,6 +934,55 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
     const base = 0.06 + t * 0.36; 
     speedEffectLeft.style.background = `linear-gradient(90deg, rgba(255,255,255,${base}) , rgba(255,255,255,0.02))`;
     speedEffectRight.style.background = `linear-gradient(270deg, rgba(255,255,255,${base}) , rgba(255,255,255,0.02))`;
+  }
+
+  // distance progress UI and target tracking
+  function updateTargetProgressUI(){
+    if(!tpFill || !tpVal || !tpGoal) return;
+    const pct = clamp(distanceRun / distanceGoal, 0, 1);
+    tpFill.style.width = `${(pct*100).toFixed(1)}%`;
+    tpVal.textContent = Math.floor(distanceRun);
+    tpGoal.textContent = Math.floor(distanceGoal);
+  }
+  function updateDistanceProgress(dt){
+    distanceRun += speed * dt * 10; // simple distance estimate based on speed
+    updateTargetProgressUI();
+  }
+
+  // day/night cycle: animate lights, background, sun/moon positions
+  function updateDayNight(dt){
+    dayTimer += dt * 0.6; // slow drift
+    const phase = (dayTimer % DAY_LENGTH) / DAY_LENGTH; // 0..1
+    const angle = phase * Math.PI * 2;
+    const lightStrength = clamp(0.25 + Math.sin(angle) * 0.55, 0.12, 1.0);
+    const moonStrength = 0.18 + Math.max(0, -Math.sin(angle)) * 0.35;
+    if(dirLight) dirLight.intensity = lightStrength;
+    if(hemiLight) hemiLight.intensity = 0.5 + lightStrength * 0.6;
+    if(moonLight) moonLight.intensity = moonStrength;
+
+    // tint lights
+    if(dirLight){ dirLight.color.setHSL(0.12, 0.6, 0.62 + 0.18*Math.sin(angle)); }
+    if(hemiLight){ hemiLight.color.setHSL(0.58, 0.35, 0.65 + 0.08*Math.sin(angle)); }
+
+    // move sun/moon across sky
+    const radius = 11;
+    const cx = camera ? camera.position.x : 0;
+    const cz = camera ? camera.position.z : 0;
+    const baseZ = cz - 12; // keep sky objects steady relative to camera so jumps don't shift them
+    const sunY = Math.sin(angle) * 5 + 5.5;
+    const sunX = Math.cos(angle) * radius;
+    if(sunMesh){ sunMesh.position.set(cx + sunX, Math.max(3, sunY), baseZ); sunMesh.visible = sunY > 0; }
+    if(moonMesh){ const moonAngle = angle + Math.PI; const my = Math.sin(moonAngle)*4.5 + 4; const mx = Math.cos(moonAngle)*radius; moonMesh.position.set(cx + mx, Math.max(2, my), baseZ); moonMesh.visible = my > -2; }
+    if(dirLight){ dirLight.position.set(cx - sunX*0.4, 8 + sunY*0.3, baseZ + 6); }
+    if(moonLight){ moonLight.position.set(cx + 3, 6, baseZ - 6); }
+
+    // subtly shift background color
+    try{
+      const bg = new THREE.Color();
+      bg.setHSL(0.6, 0.5, 0.08 + 0.22 * lightStrength);
+      renderer.setClearColor(bg, 1);
+      if(scene && scene.fog){ scene.fog.color = bg; }
+    }catch(e){}
   }
 
   
@@ -991,6 +1068,18 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
     snowTimer = setTimeout(()=>{ snowBurst(3 + Math.floor(Math.random()*8)); scheduleSnowOnce(); }, delay);
   }
 
+  // target UI: pick a random target zombie and show a banner/persistent pill
+  let currentTarget = null; let targetHideTimeout = null;
+  function pickRandomTarget(){ try{
+      const allowedKeys = Object.keys(SETTINGS.zombieAllow||{}).filter(k=>SETTINGS.zombieAllow[k]);
+      const candidates = ZOMBIE_TYPES.filter(z => allowedKeys.length ? allowedKeys.indexOf(z.key) !== -1 : true);
+      if(!candidates || candidates.length === 0) return null;
+      const sel = candidates[Math.floor(Math.random() * candidates.length)];
+      currentTarget = sel; return sel;
+    }catch(e){ return null; } }
+  function showTargetBanner(t){ try{ if(!t) return; currentTarget = t; const tb = targetBannerEl; const tn = document.getElementById('targetName'); const ti = document.getElementById('targetImg'); const pill = document.getElementById('targetPill'); const pillImg = document.getElementById('pillImg'); const pillName = document.getElementById('pillName'); if(tn) tn.textContent = t.label; if(ti) ti.src = t.path; if(tb) tb.style.display = 'flex'; if(finishBarEl) finishBarEl.style.display = 'flex'; if(targetProg) targetProg.style.display = 'none'; if(pillImg) pillImg.src = t.path; if(pillName) pillName.textContent = t.label; if(pill) pill.style.display = 'flex'; if(targetHideTimeout) clearTimeout(targetHideTimeout); targetHideTimeout = setTimeout(()=>{ hideTargetBanner(); }, 6000); }catch(e){ console.warn('showTargetBanner failed', e); } }
+  function hideTargetBanner(){ try{ if(finishBarEl) finishBarEl.style.display = 'none'; if(targetProg) targetProg.style.display = 'flex'; if(targetBannerEl) targetBannerEl.style.display = 'flex'; }catch(e){} }
+
   function startChristmas(){ if(christmasMode) return; christmasMode = true; if(snowTimer) clearTimeout(snowTimer); scheduleSnowOnce(); christmasToggle.textContent = '❄️ Xmas ON'; }
   function stopChristmas(){ christmasMode = false; if(snowTimer) clearTimeout(snowTimer); 
     const flakes = container.querySelectorAll('.snowflake'); flakes.forEach(f=>f.remove()); christmasToggle.textContent = '❄️ Christmas'; }
@@ -1000,6 +1089,9 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
     menu.style.display = '';
     const menuTextEl = document.getElementById('menuText'); if(menuTextEl) menuTextEl.textContent = (TRANSLATIONS[currentLang]?.game_over || TRANSLATIONS['en'].game_over) + ' ' + Math.floor(score);
     const pb = playBtn || document.getElementById('lobbyPlayBtn') || document.getElementById('menuPlayBtn'); if(pb) pb.textContent = 'Restart';
+    if(targetProg) targetProg.style.display = 'none';
+    if(targetBannerEl) targetBannerEl.style.display = 'none';
+    if(finishBarEl) finishBarEl.style.display = 'none';
     if(Math.floor(score) > best){
       best = Math.floor(score);
       localStorage.setItem('runner3d_best', String(best));
@@ -1029,9 +1121,12 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
     
     const z = -160 - Math.random()*80; 
     const lane = Math.floor(Math.random()*3);
-    const w = 0.9 + Math.random()*0.8;
-    const h = 1.2 + Math.random()*1.4;
-    
+    let w = 0.9 + Math.random()*0.8;
+    let h = 1.2 + Math.random()*1.4;
+    // randomly some zombies are 'tall' and cannot be simply jumped over
+    const isTall = Math.random() < 0.28;
+    if(isTall){ h = 1.9 + Math.random()*1.0; }
+
     // pick a zombie texture from the enabled types (if any)
     let tex = null;
     try{
@@ -1044,18 +1139,19 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
     if(tex){
       const mat = new THREE.SpriteMaterial({map: tex, transparent: true});
       const sprite = new THREE.Sprite(mat);
-      sprite.scale.set(w * 1.4, h * 1.4, 1);
+      sprite.scale.set(w * 1.4, (isTall ? h * 1.2 : h * 1.0), 1);
       sprite.position.set(lanes[lane], h/2, z);
       scene.add(sprite);
-      const hp = 1 + Math.floor(Math.random()*2); 
-      obstacles.push({mesh: sprite, lane, w, h, hp:hp, isSprite:true});
+      const hp = 1 + Math.floor(Math.random()*2) + (isTall ? 1 : 0);
+      obstacles.push({mesh: sprite, lane, w, h, hp:hp, isSprite:true, tall: !!isTall});
     } else {
       const matOptions = {color:0x6ab04c, metalness:0.1, roughness:0.9};
       const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, 1.6), new THREE.MeshStandardMaterial(matOptions));
+      if(isTall) body.scale.y = 1.25;
       body.position.set(lanes[lane], h/2, z);
       scene.add(body);
-      const hp = 1 + Math.floor(Math.random()*2);
-      obstacles.push({mesh: body, lane, w, h, hp:hp, isSprite:false});
+      const hp = 1 + Math.floor(Math.random()*2) + (isTall ? 1 : 0);
+      obstacles.push({mesh: body, lane, w, h, hp:hp, isSprite:false, tall: !!isTall});
     }
   }
 
@@ -1096,21 +1192,34 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
           const dx = Math.abs(o.mesh.position.x - playerMesh.position.x);
           const hitThreshold = 1.2; 
           if(dx < hitThreshold){
-            // allow jumping over obstacles when sufficiently high
             const inAir = playerMesh && playerMesh.position && playerMesh.position.y > JUMP_CLEAR_Y;
-            if(inAir){ try{ disposeMesh(o.mesh); }catch(e){}; scene.remove(o.mesh); obstacles.splice(i,1); continue; }
+            if(inAir){
+              // if obstacle is tall, we cannot 'jump over' it — but landing on it while airborne stomps it
+              if(o.tall){
+                try{
+                  if(o.isSprite && o.mesh && o.mesh.material){ o.mesh.material.color && o.mesh.material.color.setHex(0xff8866); o.mesh.material.opacity = 0.95; }
+                  else if(o.mesh && o.mesh.material){ o.mesh.material.color && o.mesh.material.color.setHex(0xff8866); }
+                }catch(e){}
+                try{ disposeMesh(o.mesh); }catch(e){}; scene.remove(o.mesh); obstacles.splice(i,1);
+                // award stomp score
+                score += 8 + Math.floor(speed);
+                scoreEl.textContent = Math.floor(score);
+                continue;
+              } else {
+                // normal jump-over
+                try{ disposeMesh(o.mesh); }catch(e){}; scene.remove(o.mesh); obstacles.splice(i,1); continue;
+              }
+            }
             const isNic = (currentUser === 'nicomyw');
             try{ disposeMesh(o.mesh); }catch(e){}
             scene.remove(o.mesh); obstacles.splice(i,1);
             if(isNic){
-              
               try{ currentLane = Math.max(0, Math.min(2, currentLane)); targetX = lanes[currentLane]; }catch(e){}
               continue;
             }
             gameOver();
             return;
           } else {
-            
             try{ disposeMesh(o.mesh); }catch(e){}
             scene.remove(o.mesh); obstacles.splice(i,1);
             continue;
@@ -1194,6 +1303,10 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
     
     score += dt * 12 + speed * dt * 0.5;
     scoreEl.textContent = Math.floor(score);
+
+    // progress and day/night updates
+    updateDistanceProgress(dt);
+    updateDayNight(dt);
 
     
     updateSpeedometer(speed);
@@ -1313,19 +1426,20 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
   if(menuGuestBtn) menuGuestBtn.addEventListener('click', ()=>{ guestAuto().then(()=>{ try{ playPlaySound(); }catch(e){} menu.style.display='none'; reset(); start(); }).catch(()=>{ try{ playPlaySound(); }catch(e){} menu.style.display='none'; reset(); start(); }); });
 
   
+  // pick a run target and show banner when play starts
   if(playBtn) playBtn.addEventListener('click', ()=>{
     if(!currentUser){ authModal.style.display = 'flex'; menu.style.display='none'; try{ stopLobbyAudio(); }catch(e){} }
-    else { try{ playPlaySound(); }catch(e){} reset(); start(); }
+    else { try{ playPlaySound(); }catch(e){} const t = pickRandomTarget(); showTargetBanner(t); reset(); start(); }
   });
   if(howBtn) howBtn.addEventListener('click', ()=>{ alert(t('controls_text')); });
 
   // Lobby and settings buttons
   const lobbyPlay = document.getElementById('lobbyPlayBtn');
-  if(lobbyPlay) lobbyPlay.addEventListener('click', async ()=>{ try{ if(!currentUser) await guestAuto(); try{ playPlaySound(); }catch(e){} menu.style.display='none'; reset(); start(); }catch(e){ try{ playPlaySound(); }catch(e){} menu.style.display='none'; reset(); start(); } });
+  if(lobbyPlay) lobbyPlay.addEventListener('click', async ()=>{ try{ if(!currentUser) await guestAuto(); try{ playPlaySound(); }catch(e){} menu.style.display='none'; const t = pickRandomTarget(); showTargetBanner(t); reset(); start(); }catch(e){ try{ playPlaySound(); }catch(e){} menu.style.display='none'; const t = pickRandomTarget(); showTargetBanner(t); reset(); start(); } });
   const lobbySettings = document.getElementById('lobbySettingsBtn');
   if(lobbySettings) lobbySettings.addEventListener('click', ()=>{ populateSettingsUI(); const sm = document.getElementById('settingsModal'); if(sm) sm.style.display='flex'; });
   const menuGuestSmall = document.getElementById('menuGuestSmall');
-  if(menuGuestSmall) menuGuestSmall.addEventListener('click', async ()=>{ try{ await guestAuto(); menu.style.display='none'; reset(); start(); }catch(e){ menu.style.display='none'; reset(); start(); } });
+  if(menuGuestSmall) menuGuestSmall.addEventListener('click', async ()=>{ try{ await guestAuto(); menu.style.display='none'; const t = pickRandomTarget(); showTargetBanner(t); reset(); start(); }catch(e){ menu.style.display='none'; const t = pickRandomTarget(); showTargetBanner(t); reset(); start(); } });
 
   // Settings modal controls
   const applySettingsBtn = document.getElementById('applySettingsBtn');
