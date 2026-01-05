@@ -28,9 +28,16 @@
   const tpGoal = document.getElementById('tpGoal');
   const targetBannerEl = document.getElementById('targetBanner');
   const finishBarEl = targetBannerEl ? targetBannerEl.querySelector('.finish-bar') : null;
+  const charPrevBtn = document.getElementById('charPrev');
+  const charNextBtn = document.getElementById('charNext');
+  const charLabelEl = document.getElementById('charLabel');
+  const settingsAccountStatus = document.getElementById('settingsAccountStatus');
+  const settingsSignInBtn = document.getElementById('settingsSignIn');
+  const settingsLogoutBtn = document.getElementById('settingsLogout');
+  const fullscreenBtn = document.getElementById('fullscreenBtn');
 
   let scene, camera, renderer, playerMesh, obstacles = [], clock, speed, spawnTimer, score, running, best;
-let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animId: null };
+let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animId: null, dance:{mode:null,t:0} };
   let textures = [];
   let loader = null;
   let bullets = [];
@@ -42,6 +49,22 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
   const lanes = [-2.4, 0, 2.4];
   let currentLane = 1; 
   let targetX = lanes[currentLane];
+
+  const CHARACTER_TYPES = [
+    { key:'runner', label:'Runner' },
+    { key:'chicken', label:'Chicken' },
+    { key:'roblox', label:'Roblox' },
+    { key:'horse', label:'Horse' },
+    { key:'ninja', label:'Ninja' },
+    { key:'astronaut', label:'Astronaut' },
+    { key:'knight', label:'Knight' },
+    { key:'alien', label:'Alien' },
+    { key:'penguin', label:'Penguin' },
+    { key:'slime', label:'Slime' }
+  ];
+  let selectedCharacterIndex = 0;
+  function currentCharacter(){ return CHARACTER_TYPES[selectedCharacterIndex]?.key || 'runner'; }
+  let characterFactory = null; // assigned after THREE scene bootstraps
   
   let users = {}; 
   let currentUser = null;
@@ -146,6 +169,13 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
     }catch(e){}
     if(SETTINGS.christmas){ startChristmas(); } else { stopChristmas(); }
     updateRendererScale(); populateSettingsUI(); }catch(e){ console.warn('applySettings failed', e); } }
+
+  function isFullscreen(){ return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  async function toggleFullscreen(){ try{ if(isFullscreen()){ if(document.exitFullscreen) await document.exitFullscreen(); else if(document.webkitExitFullscreen) document.webkitExitFullscreen(); }
+      else { if(container.requestFullscreen) await container.requestFullscreen(); else if(container.webkitRequestFullscreen) container.webkitRequestFullscreen(); }
+    }catch(e){ console.warn('fullscreen toggle failed', e); }
+  }
+  function updateFullscreenBtn(){ if(!fullscreenBtn) return; fullscreenBtn.textContent = isFullscreen() ? '⤡' : '⤢'; }
 
   
   // --- i18n: supported languages and translations (minimal set) ---
@@ -368,38 +398,222 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
                     runCycle:0};
       return g;
     }
-    playerMesh = createRunner();
+    function createChicken(){
+      const g = new THREE.Group();
+      const bodyMat = new THREE.MeshStandardMaterial({color:0xffe8b3, roughness:0.7});
+      const beakMat = new THREE.MeshStandardMaterial({color:0xffa200, roughness:0.6});
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.6,12,12), bodyMat); body.position.y = 0.75; g.add(body);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.32,10,10), bodyMat); head.position.set(0,1.25,0.1); g.add(head);
+      const beak = new THREE.Mesh(new THREE.ConeGeometry(0.12,0.22,8), beakMat); beak.rotation.x = Math.PI/2; beak.position.set(0,1.18,0.42); g.add(beak);
+      const legMat = new THREE.MeshStandardMaterial({color:0xf4b400, roughness:0.6});
+      const leftLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.08,0.6,8), legMat); leftLeg.position.set(-0.12,0.3,0);
+      const rightLeg = leftLeg.clone(); rightLeg.position.x = 0.12;
+      g.add(leftLeg); g.add(rightLeg);
+      g.userData = {torso:body, leftLeg, rightLeg, head, leftUpper:null, rightUpper:null, runCycle:0};
+      return g;
+    }
+    function createRoblox(){
+      const g = new THREE.Group();
+      const bodyMat = new THREE.MeshStandardMaterial({color:0xffd166, roughness:0.5});
+      const limbMat = new THREE.MeshStandardMaterial({color:0x2b2b2b, roughness:0.8});
+      const headMat = new THREE.MeshStandardMaterial({color:0xffe0b3, roughness:0.7});
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(0.9,1.1,0.5), bodyMat); torso.position.y = 1.0; g.add(torso);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.6,0.6,0.6), headMat); head.position.y = 1.6; g.add(head);
+      const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.32,0.9,0.32), limbMat); leftLeg.position.set(-0.22,0.45,0); leftLeg.geometry.translate(0,-0.45,0);
+      const rightLeg = leftLeg.clone(); rightLeg.position.x = 0.22;
+      g.add(leftLeg); g.add(rightLeg);
+      const leftUpper = new THREE.Mesh(new THREE.BoxGeometry(0.28,0.9,0.28), limbMat); leftUpper.position.set(-0.8,1.1,0); leftUpper.geometry.translate(0,-0.45,0);
+      const rightUpper = leftUpper.clone(); rightUpper.position.x = 0.8;
+      g.add(leftUpper); g.add(rightUpper);
+      g.userData = {torso, leftLeg, rightLeg, head, leftUpper, rightUpper, leftLower:null, rightLower:null, runCycle:0};
+      return g;
+    }
+    function createHorse(){
+      const g = new THREE.Group();
+      const bodyMat = new THREE.MeshStandardMaterial({color:0x9a7b4f, roughness:0.65});
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.7,0.8,1.8), bodyMat); body.position.set(0,0.9,0); g.add(body);
+      const neck = new THREE.Mesh(new THREE.BoxGeometry(0.38,0.7,0.36), bodyMat); neck.position.set(0,1.35,-0.55); neck.rotation.x = -0.35; g.add(neck);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.42,0.42,0.58), bodyMat); head.position.set(0,1.6,-0.95); g.add(head);
+      const legGeo = new THREE.BoxGeometry(0.22,0.9,0.22); legGeo.translate(0,-0.45,0);
+      const frontL = new THREE.Mesh(legGeo, bodyMat); frontL.position.set(-0.22,0.45,-0.5);
+      const frontR = frontL.clone(); frontR.position.x = 0.22;
+      const backL = frontL.clone(); backL.position.z = 0.5;
+      const backR = frontR.clone(); backR.position.z = 0.5;
+      g.add(frontL); g.add(frontR); g.add(backL); g.add(backR);
+      g.userData = {torso:body, leftLeg:frontL, rightLeg:frontR, head, leftUpper:backL, rightUpper:backR, runCycle:0};
+      return g;
+    }
+
+    function createNinja(){
+      const g = new THREE.Group();
+      const bodyMat = new THREE.MeshStandardMaterial({color:0x111111, roughness:0.4});
+      const accentMat = new THREE.MeshStandardMaterial({color:0xaa2222, roughness:0.5});
+      const headMat = new THREE.MeshStandardMaterial({color:0x222222, roughness:0.6});
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(0.7,1.0,0.6), bodyMat); torso.position.y = 0.95; g.add(torso);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.45,0.45,0.45), headMat); head.position.y = 1.55; g.add(head);
+      const band = new THREE.Mesh(new THREE.BoxGeometry(0.48,0.12,0.48), accentMat); band.position.y = 1.55; g.add(band);
+      const legGeo = new THREE.BoxGeometry(0.24,0.9,0.24); legGeo.translate(0,-0.45,0);
+      const leftLeg = new THREE.Mesh(legGeo, bodyMat); leftLeg.position.set(-0.2,0.45,0);
+      const rightLeg = leftLeg.clone(); rightLeg.position.x = 0.2; g.add(leftLeg); g.add(rightLeg);
+      const armGeo = new THREE.BoxGeometry(0.2,0.7,0.2); armGeo.translate(0,-0.35,0);
+      const leftUpper = new THREE.Mesh(armGeo, bodyMat); leftUpper.position.set(-0.6,1.05,0);
+      const rightUpper = leftUpper.clone(); rightUpper.position.x = 0.6;
+      g.add(leftUpper); g.add(rightUpper);
+      g.userData = {torso, leftLeg, rightLeg, head, leftUpper, rightUpper, leftLower:null, rightLower:null, runCycle:0};
+      return g;
+    }
+
+    function createAstronaut(){
+      const g = new THREE.Group();
+      const suitMat = new THREE.MeshStandardMaterial({color:0xe5e7ea, roughness:0.3});
+      const accent = new THREE.MeshStandardMaterial({color:0x4a90e2, roughness:0.4});
+      const visorMat = new THREE.MeshStandardMaterial({color:0x6fc3ff, roughness:0.2, metalness:0.3, opacity:0.85, transparent:true});
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(0.8,1.05,0.7), suitMat); torso.position.y = 1.0; g.add(torso);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.35,14,12), suitMat); head.position.y = 1.62; g.add(head);
+      const visor = new THREE.Mesh(new THREE.SphereGeometry(0.36,12,10,0,Math.PI*2,0,Math.PI/1.6), visorMat); visor.position.copy(head.position); visor.rotation.y = Math.PI; g.add(visor);
+      const pack = new THREE.Mesh(new THREE.BoxGeometry(0.4,0.7,0.25), accent); pack.position.set(0,1.0,0.45); g.add(pack);
+      const legGeo = new THREE.BoxGeometry(0.26,0.9,0.26); legGeo.translate(0,-0.45,0);
+      const leftLeg = new THREE.Mesh(legGeo, suitMat); leftLeg.position.set(-0.22,0.45,0);
+      const rightLeg = leftLeg.clone(); rightLeg.position.x = 0.22; g.add(leftLeg); g.add(rightLeg);
+      const armGeo = new THREE.BoxGeometry(0.22,0.75,0.22); armGeo.translate(0,-0.37,0);
+      const leftUpper = new THREE.Mesh(armGeo, suitMat); leftUpper.position.set(-0.64,1.05,0);
+      const rightUpper = leftUpper.clone(); rightUpper.position.x = 0.64;
+      g.add(leftUpper); g.add(rightUpper);
+      g.userData = {torso, leftLeg, rightLeg, head, leftUpper, rightUpper, leftLower:null, rightLower:null, runCycle:0};
+      return g;
+    }
+
+    function createKnight(){
+      const g = new THREE.Group();
+      const armor = new THREE.MeshStandardMaterial({color:0x9ea7b8, roughness:0.35, metalness:0.5});
+      const accent = new THREE.MeshStandardMaterial({color:0xb84a4a, roughness:0.5});
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(0.78,1.05,0.65), armor); torso.position.y = 1.0; g.add(torso);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.46,0.5,0.46), armor); head.position.y = 1.58; g.add(head);
+      const plume = new THREE.Mesh(new THREE.ConeGeometry(0.18,0.36,8), accent); plume.position.set(0,1.86,0); plume.rotation.x = Math.PI; g.add(plume);
+      const legGeo = new THREE.BoxGeometry(0.26,0.9,0.26); legGeo.translate(0,-0.45,0);
+      const leftLeg = new THREE.Mesh(legGeo, armor); leftLeg.position.set(-0.24,0.45,0);
+      const rightLeg = leftLeg.clone(); rightLeg.position.x = 0.24; g.add(leftLeg); g.add(rightLeg);
+      const armGeo = new THREE.BoxGeometry(0.24,0.8,0.24); armGeo.translate(0,-0.4,0);
+      const leftUpper = new THREE.Mesh(armGeo, armor); leftUpper.position.set(-0.68,1.05,0);
+      const rightUpper = leftUpper.clone(); rightUpper.position.x = 0.68; g.add(leftUpper); g.add(rightUpper);
+      g.userData = {torso, leftLeg, rightLeg, head, leftUpper, rightUpper, leftLower:null, rightLower:null, runCycle:0};
+      return g;
+    }
+
+    function createAlien(){
+      const g = new THREE.Group();
+      const skin = new THREE.MeshStandardMaterial({color:0x7ae582, roughness:0.5});
+      const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.48,1.2,10), skin); torso.position.y = 1.0; g.add(torso);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.38,12,10), skin); head.scale.set(1,1.3,1); head.position.y = 1.78; g.add(head);
+      const eyeMat = new THREE.MeshStandardMaterial({color:0x111111, roughness:0.8});
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.08,8,8), eyeMat); eye.position.set(0.12,1.78,-0.32); g.add(eye);
+      const eye2 = eye.clone(); eye2.position.x = -0.12; g.add(eye2);
+      const legGeo = new THREE.BoxGeometry(0.18,1.0,0.18); legGeo.translate(0,-0.5,0);
+      const leftLeg = new THREE.Mesh(legGeo, skin); leftLeg.position.set(-0.18,0.5,0);
+      const rightLeg = leftLeg.clone(); rightLeg.position.x = 0.18; g.add(leftLeg); g.add(rightLeg);
+      const armGeo = new THREE.BoxGeometry(0.16,0.9,0.16); armGeo.translate(0,-0.45,0);
+      const leftUpper = new THREE.Mesh(armGeo, skin); leftUpper.position.set(-0.6,1.1,0);
+      const rightUpper = leftUpper.clone(); rightUpper.position.x = 0.6; g.add(leftUpper); g.add(rightUpper);
+      g.userData = {torso, leftLeg, rightLeg, head, leftUpper, rightUpper, leftLower:null, rightLower:null, runCycle:0};
+      return g;
+    }
+
+    function createPenguin(){
+      const g = new THREE.Group();
+      const bodyMat = new THREE.MeshStandardMaterial({color:0x1f2b38, roughness:0.6});
+      const bellyMat = new THREE.MeshStandardMaterial({color:0xf5f7fa, roughness:0.55});
+      const beakMat = new THREE.MeshStandardMaterial({color:0xf4b400, roughness:0.5});
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.45,0.6,1.2,10), bodyMat); body.position.y = 0.9; g.add(body);
+      const belly = new THREE.Mesh(new THREE.PlaneGeometry(0.6,0.9), bellyMat); belly.position.set(0,0.95,0.36); g.add(belly);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.34,12,10), bodyMat); head.position.y = 1.55; g.add(head);
+      const beak = new THREE.Mesh(new THREE.ConeGeometry(0.12,0.25,8), beakMat); beak.rotation.x = Math.PI/2; beak.position.set(0,1.45,-0.36); g.add(beak);
+      const legGeo = new THREE.BoxGeometry(0.16,0.5,0.24); legGeo.translate(0,-0.25,0);
+      const leftLeg = new THREE.Mesh(legGeo, beakMat); leftLeg.position.set(-0.14,0.25,0.1);
+      const rightLeg = leftLeg.clone(); rightLeg.position.x = 0.14; g.add(leftLeg); g.add(rightLeg);
+      const wingGeo = new THREE.BoxGeometry(0.14,0.6,0.34); wingGeo.translate(0,-0.3,0);
+      const leftUpper = new THREE.Mesh(wingGeo, bodyMat); leftUpper.position.set(-0.5,1.05,0);
+      const rightUpper = leftUpper.clone(); rightUpper.position.x = 0.5; g.add(leftUpper); g.add(rightUpper);
+      g.userData = {torso:body, leftLeg, rightLeg, head, leftUpper, rightUpper, leftLower:null, rightLower:null, runCycle:0};
+      return g;
+    }
+
+    function createSlime(){
+      const g = new THREE.Group();
+      const bodyMat = new THREE.MeshStandardMaterial({color:0x5fd0a5, roughness:0.4, transparent:true, opacity:0.9});
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.9,0.9,0.9), bodyMat); body.position.y = 0.75; g.add(body);
+      const eyeMat = new THREE.MeshStandardMaterial({color:0x12302a, roughness:0.8});
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.08,8,8), eyeMat); eye.position.set(0.16,0.86,-0.36); g.add(eye);
+      const eye2 = eye.clone(); eye2.position.x = -0.16; g.add(eye2);
+      const legGeo = new THREE.BoxGeometry(0.18,0.35,0.5); legGeo.translate(0,-0.175,0);
+      const leftLeg = new THREE.Mesh(legGeo, bodyMat); leftLeg.position.set(-0.2,0.18,0);
+      const rightLeg = leftLeg.clone(); rightLeg.position.x = 0.2; g.add(leftLeg); g.add(rightLeg);
+      g.userData = {torso:body, leftLeg, rightLeg, head:body, leftUpper:null, rightUpper:null, runCycle:0};
+      return g;
+    }
+
+    function createCharacter(key){
+      if(key === 'chicken') return createChicken();
+      if(key === 'roblox') return createRoblox();
+      if(key === 'horse') return createHorse();
+      if(key === 'ninja') return createNinja();
+      if(key === 'astronaut') return createAstronaut();
+      if(key === 'knight') return createKnight();
+      if(key === 'alien') return createAlien();
+      if(key === 'penguin') return createPenguin();
+      if(key === 'slime') return createSlime();
+      return createRunner();
+    }
+    characterFactory = createCharacter;
+    playerMesh = createCharacter(currentCharacter());
     playerMesh.position.set(targetX, 0.7, 3.2);
     scene.add(playerMesh);
 
     // initialize the small lobby preview (shows the actual runner model with limbs)
-    try{ initMenuPreview(); }catch(e){}
-    
-    try{
-      pauseBtn = document.createElement('button');
-
-
-    // create a small preview renderer and animation that shows the real runner in the lobby
     function initMenuPreview(){ try{
         const wrap = document.getElementById('menuCharacter'); if(!wrap) return;
         wrap.innerHTML = '';
+        wrap.style.position = 'relative';
         const canvas = document.createElement('canvas');
         canvas.style.width = '100%'; canvas.style.height = '100%'; canvas.style.display = 'block';
         wrap.appendChild(canvas);
+        // dance menu overlay
+        const danceMenu = document.createElement('div');
+        danceMenu.className = 'dance-menu';
+        const ring = document.createElement('div'); ring.className = 'dance-ring';
+        const dances = [
+          {icon:'🌀', mode:'spin'},
+          {icon:'✨', mode:'wave'},
+          {icon:'🔥', mode:'hop'},
+          {icon:'⭐', mode:'bounce'},
+          {icon:'🤖', mode:'robot'},
+          {icon:'🥁', mode:'pop'},
+          {icon:'🤸', mode:'flip'}
+        ];
+        dances.forEach((d,i)=>{ const b = document.createElement('button'); b.textContent = d.icon; b.dataset.mode = d.mode;
+          // place around ring
+          const angle = (Math.PI*2 * i / dances.length) - Math.PI/2; // start at top
+          const r = 78;
+          const cx = 100, cy = 100;
+          b.style.left = `${cx + r*Math.cos(angle)}px`;
+          b.style.top  = `${cy + r*Math.sin(angle)}px`;
+          ring.appendChild(b);
+        });
+        danceMenu.appendChild(ring);
+        wrap.appendChild(danceMenu);
         const mr = new THREE.WebGLRenderer({canvas: canvas, alpha: true, antialias: true});
         mr.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-        mr.setSize(wrap.clientWidth, wrap.clientHeight);
+        mr.setSize(Math.max(10, wrap.clientWidth), Math.max(10, wrap.clientHeight));
         const ms = new THREE.Scene();
         const mc = new THREE.PerspectiveCamera(45, Math.max(1, wrap.clientWidth / wrap.clientHeight), 0.1, 1000);
         mc.position.set(0,1.8,3.6); mc.lookAt(0,1.0,0);
         const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0); ms.add(hemi);
         const dir = new THREE.DirectionalLight(0xffffff, 0.6); dir.position.set(1,2,1); ms.add(dir);
-        const pm = createRunner(); pm.scale.set(1.0,1.0,1.0); pm.position.set(0,0.45,0); ms.add(pm);
+        const pm = createCharacter(currentCharacter()); pm.scale.set(1.0,1.0,1.0); pm.position.set(0,0.45,0); ms.add(pm);
         pm.rotation.y = 0;
         menuPreview.renderer = mr; menuPreview.scene = ms; menuPreview.camera = mc; menuPreview.mesh = pm;
-        // interaction: drag to rotate, and auto-rotate when idle
+        menuPreview.dance = { mode:null, t:0 };
         let last = performance.now();
-        let dragging = false; let lastX = 0; const autoSpeed = 0.9; // radians per second
+        let dragging = false; let lastX = 0; const autoSpeed = 0; // disable auto spin
         canvas.addEventListener('pointerdown', e=>{ dragging = true; lastX = e.clientX; canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId); canvas.style.cursor = 'grabbing'; });
         canvas.addEventListener('pointermove', e=>{ if(!dragging) return; const x = e.clientX; const dx = x - lastX; lastX = x; pm.rotation.y += dx * 0.01; });
         canvas.addEventListener('pointerup', e=>{ dragging = false; canvas.releasePointerCapture && canvas.releasePointerCapture(e.pointerId); canvas.style.cursor = 'grab'; });
@@ -408,20 +622,112 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
         canvas.addEventListener('touchmove', e=>{ if(!dragging) return; const x = e.touches[0].clientX; const dx = x - lastX; lastX = x; pm.rotation.y += dx * 0.01; }, {passive:true});
         canvas.addEventListener('touchend', e=>{ dragging = false; });
         function loop(now){ const dt = (now - last)/1000; last = now;
-          if(!dragging){ pm.rotation.y += autoSpeed * dt * 0.3; } // gentle auto-rotation
-          if(pm.userData){ pm.userData.runCycle = (pm.userData.runCycle || 0) + dt * 6;
-            const ud = pm.userData;
-            const lrot = Math.sin(ud.runCycle) * 0.9; const rrot = Math.sin(ud.runCycle + Math.PI) * 0.9;
-            if(ud.leftLeg) ud.leftLeg.rotation.x = lrot; if(ud.rightLeg) ud.rightLeg.rotation.x = rrot;
-            if(ud.torso){ const bob = Math.abs(Math.sin(ud.runCycle)) * 0.04; ud.torso.position.y = 0.95 + bob; }
-            if(ud.leftUpper && ud.rightUpper){ ud.leftUpper.rotation.x = Math.sin(ud.runCycle + Math.PI) * 0.9; ud.rightUpper.rotation.x = Math.sin(ud.runCycle) * 0.9; }
+          if(!dragging && autoSpeed!==0){ pm.rotation.y += autoSpeed * dt * 0.3; }
+          const ud = pm.userData || {};
+          const dance = menuPreview.dance;
+          if(dance && dance.mode){
+            dance.t += dt;
+            const t = dance.t;
+            if(dance.mode === 'spin'){
+              pm.rotation.y += dt * 3.2;
+              if(ud.torso) ud.torso.rotation.x = 0;
+              if(ud.leftUpper) ud.leftUpper.rotation.x = Math.sin(t*6)*0.4;
+              if(ud.rightUpper) ud.rightUpper.rotation.x = Math.cos(t*6)*0.4;
+            }
+            else if(dance.mode === 'wave'){
+              const amp = 1.4;
+              if(ud.leftUpper) ud.leftUpper.rotation.x = Math.sin(t*4) * amp;
+              if(ud.leftLower) ud.leftLower.rotation.x = -0.7;
+              if(ud.rightUpper) ud.rightUpper.rotation.x = Math.cos(t*3.8) * amp * 0.7;
+              if(ud.head) ud.head.rotation.y = Math.sin(t*2.2)*0.2;
+            }
+            else if(dance.mode === 'hop'){
+              const hop = Math.abs(Math.sin(t*3.2)) * 0.9;
+              pm.position.y = 0.45 + hop;
+              if(ud.leftLeg) ud.leftLeg.rotation.x = 0.2 + Math.sin(t*5)*0.15;
+              if(ud.rightLeg) ud.rightLeg.rotation.x = -0.2 + Math.cos(t*5)*0.15;
+              if(ud.head) ud.head.rotation.z = Math.sin(t*4)*0.08;
+            }
+            else if(dance.mode === 'bounce'){
+              const b = Math.abs(Math.sin(t*5.4)) * 0.5;
+              pm.position.y = 0.45 + b;
+              if(ud.torso) ud.torso.rotation.z = Math.sin(t*6) * 0.12;
+            }
+            else if(dance.mode === 'robot'){
+              pm.rotation.y = Math.round(t*2)%2 ? 0.2 : -0.2;
+              if(ud.leftUpper) ud.leftUpper.rotation.x = Math.round(t*3)%2 ? 0.9 : -0.3;
+              if(ud.rightUpper) ud.rightUpper.rotation.x = Math.round(t*4)%2 ? -0.9 : 0.3;
+              if(ud.leftLeg) ud.leftLeg.rotation.x = Math.round(t*2)%2 ? 0.2 : -0.2;
+              if(ud.rightLeg) ud.rightLeg.rotation.x = Math.round(t*2)%2 ? -0.2 : 0.2;
+            }
+            else if(dance.mode === 'pop'){
+              const punch = Math.sin(t*7)*0.8;
+              if(ud.leftUpper) ud.leftUpper.rotation.x = punch;
+              if(ud.rightUpper) ud.rightUpper.rotation.x = -punch*0.6;
+              if(ud.torso) ud.torso.rotation.x = Math.sin(t*3)*0.1;
+              if(ud.head) ud.head.rotation.y = Math.sin(t*5)*0.25;
+            }
+            else if(dance.mode === 'flip'){
+              pm.rotation.x = (t * Math.PI * 2) % (Math.PI*2);
+              pm.position.y = 0.45 + Math.abs(Math.sin(t*4)) * 0.6;
+              if(ud.leftUpper) ud.leftUpper.rotation.x = -0.4;
+              if(ud.rightUpper) ud.rightUpper.rotation.x = -0.4;
+              if(ud.leftLeg) ud.leftLeg.rotation.x = 0.4 * Math.cos(t*6);
+              if(ud.rightLeg) ud.rightLeg.rotation.x = -0.4 * Math.cos(t*6);
+            }
+          } else {
+            // idle pose
+            pm.position.y = 0.45;
+            pm.rotation.x = 0;
+            if(ud.leftLeg) ud.leftLeg.rotation.x = 0;
+            if(ud.rightLeg) ud.rightLeg.rotation.x = 0;
+            if(ud.torso){ ud.torso.position.y = 0.95; ud.torso.rotation.set(0,0,0); }
+            if(ud.leftUpper) ud.leftUpper.rotation.x = -0.2;
+            if(ud.rightUpper) ud.rightUpper.rotation.x = -0.2;
+            if(ud.head) ud.head.rotation.set(0,0,0);
           }
           mr.render(ms, mc);
           menuPreview.animId = requestAnimationFrame(loop);
         }
         cancelAnimationFrame(menuPreview.animId || 0);
         menuPreview.animId = requestAnimationFrame(loop);
+        canvas.addEventListener('click', ()=>{
+          danceMenu.classList.add('visible');
+        });
+        danceMenu.querySelectorAll('button').forEach(btn=>{
+          btn.addEventListener('click', e=>{
+            const mode = e.currentTarget.dataset.mode;
+            danceMenu.classList.remove('visible');
+            menuPreview.dance.mode = mode; menuPreview.dance.t = 0;
+          });
+        });
     }catch(e){ console.warn('initMenuPreview failed', e); } }
+    try{ initMenuPreview(); }catch(e){}
+
+    function rebuildPlayerMesh(){ if(!characterFactory || !scene) return; if(playerMesh){ scene.remove(playerMesh); disposeMesh(playerMesh); }
+      playerMesh = characterFactory(currentCharacter());
+      playerMesh.position.set(targetX, GROUND_Y, 3.2);
+      playerVy = 0; if(!playerMesh.userData) playerMesh.userData = {}; playerMesh.userData.isJumping = false;
+      scene.add(playerMesh);
+    }
+
+    function rebuildMenuPreview(){ if(menuPreview.animId) cancelAnimationFrame(menuPreview.animId); if(menuPreview.renderer){ try{ menuPreview.renderer.dispose(); }catch(e){} }
+      menuPreview = { renderer:null, scene:null, camera:null, mesh:null, animId:null, dance:{mode:null,t:0} }; try{ initMenuPreview(); }catch(e){} }
+
+    function updateCharacterLabel(){ if(charLabelEl) charLabelEl.textContent = CHARACTER_TYPES[selectedCharacterIndex]?.label || 'Runner'; }
+
+    function changeCharacter(delta){ selectedCharacterIndex = (selectedCharacterIndex + delta + CHARACTER_TYPES.length) % CHARACTER_TYPES.length; updateCharacterLabel(); rebuildPlayerMesh(); rebuildMenuPreview(); }
+
+    updateCharacterLabel();
+    if(charPrevBtn) charPrevBtn.addEventListener('click', ()=>changeCharacter(-1));
+    if(charNextBtn) charNextBtn.addEventListener('click', ()=>changeCharacter(1));
+    updateFullscreenBtn();
+    if(fullscreenBtn){ fullscreenBtn.addEventListener('click', ()=>{ toggleFullscreen().then(updateFullscreenBtn); }); }
+    document.addEventListener('fullscreenchange', updateFullscreenBtn);
+    document.addEventListener('webkitfullscreenchange', updateFullscreenBtn);
+    
+    try{
+      pauseBtn = document.createElement('button');
 
       pauseBtn.id = 'pauseBtn'; pauseBtn.textContent = (TRANSLATIONS[currentLang]?.pause || TRANSLATIONS['en'].pause);
       
@@ -555,7 +861,7 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
       if(ud.leftLeg) ud.leftLeg.rotation.x = -0.6;
       if(ud.rightLeg) ud.rightLeg.rotation.x = -0.6;
       if(ud.torso){ ud.torso.position.y = 1.25; ud.torso.rotation.x = 0.05; }
-      if(ud.leftUpper && ud.rightUpper){ ud.leftUpper.rotation.x = -1.0; ud.rightUpper.rotation.x = -1.0; ud.leftLower.rotation.x = -0.6; ud.rightLower.rotation.x = -0.6; }
+      if(ud.leftUpper && ud.rightUpper){ ud.leftUpper.rotation.x = -1.0; ud.rightUpper.rotation.x = -1.0; if(ud.leftLower) ud.leftLower.rotation.x = -0.6; if(ud.rightLower) ud.rightLower.rotation.x = -0.6; }
       return;
     }
     
@@ -589,8 +895,8 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
       ud.leftUpper.rotation.x = lArmRot * 0.9;
       ud.rightUpper.rotation.x = rArmRot * 0.9;
       
-      ud.leftLower.rotation.x = Math.max(-1.2, Math.min(0.2, -lArmRot * 0.45));
-      ud.rightLower.rotation.x = Math.max(-1.2, Math.min(0.2, -rArmRot * 0.45));
+      if(ud.leftLower) ud.leftLower.rotation.x = Math.max(-1.2, Math.min(0.2, -lArmRot * 0.45));
+      if(ud.rightLower) ud.rightLower.rotation.x = Math.max(-1.2, Math.min(0.2, -rArmRot * 0.45));
       
       ud.leftUpper.rotation.z = Math.sin(ud.runCycle*0.7) * 0.06;
       ud.rightUpper.rotation.z = -Math.sin(ud.runCycle*0.7) * 0.06;
@@ -810,9 +1116,13 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
   }
   function updateUserUI(){
     if(currentUser){
-      userBox.innerHTML = `Signed: <b>${currentUser}</b> ${window.API_BASE ? '<span class="server-tag">[Server]</span>' : ''} <button id="logoutBtn">Logout</button>`;
+      userBox.innerHTML = `<b>${currentUser}</b> ${window.API_BASE ? '<span class="server-tag">[Server]</span>' : ''} <button id="logoutBtn">Logout</button>`;
       const outBtn = document.getElementById('logoutBtn');
       outBtn.addEventListener('click', ()=>{ logoutUser(); });
+
+      if(settingsAccountStatus) settingsAccountStatus.textContent = `Signed in as ${currentUser}`;
+      if(settingsSignInBtn) settingsSignInBtn.style.display = 'none';
+      if(settingsLogoutBtn){ settingsLogoutBtn.style.display = ''; settingsLogoutBtn.onclick = ()=>{ const sm = document.getElementById('settingsModal'); if(sm) sm.style.display='none'; logoutUser(); }; }
       
       // update static menu layout in-place
       const menuTextEl = document.getElementById('menuText'); if(menuTextEl) menuTextEl.textContent = t('menu_welcome',{name: currentUser});
@@ -834,6 +1144,10 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
       if(sign){ sign.style.display=''; sign.onclick = ()=>{ authModal.style.display='flex'; menu.style.display='none'; }; }
       if(reg){ reg.style.display=''; reg.onclick = ()=>{ authModal.style.display='flex'; menu.style.display='none'; }; }
       if(guest) { guest.style.display=''; guest.onclick = ()=>{ guestAuto(); menu.style.display='none'; try{ playPlaySound(); }catch(e){} reset(); start(); }; }
+
+      if(settingsAccountStatus) settingsAccountStatus.textContent = 'Not signed in';
+      if(settingsSignInBtn){ settingsSignInBtn.style.display = ''; settingsSignInBtn.onclick = ()=>{ const sm = document.getElementById('settingsModal'); if(sm) sm.style.display='none'; authModal.style.display='flex'; menu.style.display='none'; }; }
+      if(settingsLogoutBtn){ settingsLogoutBtn.style.display = 'none'; settingsLogoutBtn.onclick = null; }
     }
     renderLeaderboard();
   }
@@ -875,6 +1189,7 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
     if(targetProg) targetProg.style.display = 'none';
     if(targetBannerEl) targetBannerEl.style.display = 'none';
     if(finishBarEl) finishBarEl.style.display = 'none';
+    setSpeedUIVisible(false);
     
     updateUserUI();
   }
@@ -883,6 +1198,7 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
     menu.style.display = 'none';
     running = true;
     clock.start();
+    setSpeedUIVisible(true);
     
     initSpeedEffects();
     
@@ -892,6 +1208,7 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
 
   
   function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+  function setSpeedUIVisible(show){ const display = show ? '' : 'none'; const s = document.getElementById('speedo'); const l = document.getElementById('speedEffectLeft'); const r = document.getElementById('speedEffectRight'); if(s) s.style.display = display; if(l) l.style.display = display; if(r) r.style.display = display; }
   function updateSpeedometer(spd){
     const needle = document.getElementById('needle');
     const valEl = document.getElementById('speedValue');
@@ -1087,6 +1404,7 @@ let menuPreview = { renderer: null, scene: null, camera: null, mesh: null, animI
   function gameOver(){
     running = false;
     menu.style.display = '';
+    setSpeedUIVisible(false);
     const menuTextEl = document.getElementById('menuText'); if(menuTextEl) menuTextEl.textContent = (TRANSLATIONS[currentLang]?.game_over || TRANSLATIONS['en'].game_over) + ' ' + Math.floor(score);
     const pb = playBtn || document.getElementById('lobbyPlayBtn') || document.getElementById('menuPlayBtn'); if(pb) pb.textContent = 'Restart';
     if(targetProg) targetProg.style.display = 'none';
