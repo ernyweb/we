@@ -10,6 +10,10 @@
 #include <vector>
 #include <memory>
 
+#ifdef PLATFORM_ANDROID
+#include <android/native_window.h>
+#endif
+
 class Game {
 public:
     Game();
@@ -19,6 +23,10 @@ public:
     void Run();          // Desktop/iOS için sonsuz loop
     void RunFrame();     // Android için tek frame
     void Shutdown();
+    
+#ifdef PLATFORM_ANDROID
+    bool SetNativeWindow(ANativeWindow* window);
+#endif
     
 private:
     void ProcessInput();

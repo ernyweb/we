@@ -15,16 +15,16 @@ static void handle_cmd(struct android_app* app, int32_t cmd) {
         case APP_CMD_INIT_WINDOW:
             LOGI("APP_CMD_INIT_WINDOW");
             if (app->window != nullptr && game != nullptr) {
-                if (!game->Initialize()) {
-                    LOGE("Game initialization failed!");
+                LOGI("Window is valid, calling SetNativeWindow");
+                if (!game->SetNativeWindow(app->window)) {
+                    LOGE("SetNativeWindow failed!");
                 }
+            } else {
+                LOGE("Window or game is null! window=%p, game=%p", app->window, game);
             }
             break;
         case APP_CMD_TERM_WINDOW:
             LOGI("APP_CMD_TERM_WINDOW");
-            if (game != nullptr) {
-                game->Shutdown();
-            }
             break;
         case APP_CMD_GAINED_FOCUS:
             LOGI("APP_CMD_GAINED_FOCUS");

@@ -2,6 +2,10 @@
 
 #include <string>
 
+#ifdef PLATFORM_ANDROID
+#include <android/native_window.h>
+#endif
+
 class Renderer {
 public:
     Renderer();
@@ -9,6 +13,11 @@ public:
     
     bool Initialize(int width, int height);
     void Shutdown();
+    
+#ifdef PLATFORM_ANDROID
+    bool InitializeEGL();
+    bool SetNativeWindow(ANativeWindow* window);
+#endif
     
     void BeginFrame();
     void EndFrame();

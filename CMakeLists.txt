@@ -9,8 +9,9 @@ if(ANDROID)
     set(PLATFORM_ANDROID TRUE)
     set(CMAKE_SYSTEM_NAME Android)
     
-    # Add Android NDK sources
-    set(ANDROID_NDK_SOURCES $ENV{ANDROID_NDK_HOME}/sources)
+    # Use CMAKE_ANDROID_NDK environment
+    set(NDK_PATH "/tmp/android-ndk-r26b")
+    set(ANDROID_NDK_SOURCES "${NDK_PATH}/sources")
     if(NOT EXISTS ${ANDROID_NDK_SOURCES})
         message(WARNING "Android NDK sources not found at ${ANDROID_NDK_SOURCES}")
     endif()
@@ -98,10 +99,10 @@ target_include_directories(${PROJECT_NAME} PRIVATE src)
 # Android NDK native app glue
 if(ANDROID)
     target_include_directories(${PROJECT_NAME} PRIVATE 
-        $ENV{ANDROID_NDK_HOME}/sources/android/native_app_glue
+        ${ANDROID_NDK_SOURCES}/android/native_app_glue
     )
     target_sources(${PROJECT_NAME} PRIVATE
-        $ENV{ANDROID_NDK_HOME}/sources/android/native_app_glue/android_native_app_glue.c
+        ${ANDROID_NDK_SOURCES}/android/native_app_glue/android_native_app_glue.c
     )
 endif()
 
