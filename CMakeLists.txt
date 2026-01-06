@@ -8,6 +8,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 if(ANDROID)
     set(PLATFORM_ANDROID TRUE)
     set(CMAKE_SYSTEM_NAME Android)
+    
+    # Add Android NDK sources
+    set(ANDROID_NDK_SOURCES $ENV{ANDROID_NDK_HOME}/sources)
+    if(NOT EXISTS ${ANDROID_NDK_SOURCES})
+        message(WARNING "Android NDK sources not found at ${ANDROID_NDK_SOURCES}")
+    endif()
+    
 elseif(IOS)
     set(PLATFORM_IOS TRUE)
     set(CMAKE_SYSTEM_NAME iOS)
@@ -84,6 +91,16 @@ endif()
 
 # Include directories
 target_include_directories(${PROJECT_NAME} PRIVATE src)
+
+# Android NDK native app glue
+if(ANDROID)
+    target_include_directories(${PROJECT_NAME} PRIVATE 
+        $ENV{ANDROID_NDK_HOME}/sources/android/native_app_glue
+    )
+    target_sources(${PROJECT_NAME} PRIVATE
+        $ENV{ANDROID_NDK_HOME}/sources/android/native_app_glue/android_native_app_glue.c
+    )
+endif()
 
 # Compiler flags
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
