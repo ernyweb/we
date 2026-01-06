@@ -121,12 +121,41 @@ jobs:
         EOF
         
         cat > android/build.gradle << 'EOF'
-        plugins {
-            id 'com.android.application' version '8.1.0' apply false
+        buildscript {
+            repositories {
+                google()
+                mavenCentral()
+            }
+            dependencies {
+                classpath 'com.android.tools.build:gradle:8.1.0'
+            }
+        }
+        
+        allprojects {
+            repositories {
+                google()
+                mavenCentral()
+            }
         }
         EOF
         
         cat > android/settings.gradle << 'EOF'
+        pluginManagement {
+            repositories {
+                google()
+                mavenCentral()
+                gradlePluginPortal()
+            }
+        }
+        
+        dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
+        
         rootProject.name = "Runner3D"
         include ':app'
         EOF
@@ -135,13 +164,19 @@ jobs:
         android.useAndroidX=true
         android.enableJetifier=true
         org.gradle.jvmargs=-Xmx2048m
+        android.nonTransitiveRClass=true
         EOF
+        
+    - name: Generate Gradle Wrapper
+      run: |
+        cd android
+        gradle wrapper --gradle-version 8.5
         
     - name: Build APK
       run: |
         cd android
-        chmod +x gradlew || true
-        ./gradlew assembleRelease || gradle assembleRelease
+        chmod +x gradlew
+        ./gradlew assembleRelease --stacktrace
         
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
