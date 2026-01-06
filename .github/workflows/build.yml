@@ -40,15 +40,64 @@ jobs:
         
     - name: Create APK package
       run: |
+        # Create AndroidManifest.xml
         mkdir -p runner3d-apk/lib/arm64-v8a
         cp build-android/libRunner3D.so runner3d-apk/lib/arm64-v8a/
         
+        cat > runner3d-apk/AndroidManifest.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+            package="com.runner3d.app"
+            android:versionCode="1"
+            android:versionName="1.0">
+            <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="34" />
+            <uses-feature android:glEsVersion="0x00030000" android:required="true" />
+            <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+            <application android:hasCode="false" android:label="Runner3D" android:debuggable="true">
+                <activity android:name="android.app.NativeActivity" android:label="Runner3D"
+                    android:configChanges="orientation|keyboardHidden|screenSize" android:exported="true">
+                    <meta-data android:name="android.app.lib_name" android:value="Runner3D" />
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+            </application>
+        </manifest>
+        EOF
+        
         cd runner3d-apk
         mkdir -p assets
-        zip -r runner3d.apk lib/ assets/
+        
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      
+    - name: Build and Sign APK
+      run: |
+        cd runner3d-apk
+        
+        # Create debug keystore
+        keytool -genkeypair -v -keystore ../debug.keystore -storepass android \
+          -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 \
+          -validity 10000 -dname "CN=Android Debug,O=Android,C=US" || true
+        
+        # Build APK with aapt
+        $ANDROID_HOME/build-tools/34.0.0/aapt package -f -M AndroidManifest.xml \
+          -I $ANDROID_HOME/platforms/android-34/android.jar -F runner3d-base.apk
+        
+        # Add native library
+        $ANDROID_HOME/build-tools/34.0.0/aapt add runner3d-base.apk lib/arm64-v8a/libRunner3D.so
+        
+        # Align
+        $ANDROID_HOME/build-tools/34.0.0/zipalign -f 4 runner3d-base.apk runner3d-aligned.apk
+        
+        # Sign
+        $ANDROID_HOME/build-tools/34.0.0/apksigner sign --ks ../debug.keystore \
+          --ks-pass pass:android --key-pass pass:android \
+          --out runner3d-signed.apk runner3d-aligned.apk
         
         mkdir -p ../android/app/build/outputs/apk/release
-        cp runner3d.apk ../android/app/build/outputs/apk/release/app-release.apk
+        cp runner3d-signed.apk ../android/app/build/outputs/apk/release/app-release.apk
         
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
