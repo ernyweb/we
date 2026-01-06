@@ -1,54 +1,84 @@
-# Runner3D Mobile - C++ Edition
+# 🎮 Game Launcher with FPS Booster
 
-🎮 **Native C++ endless runner game for Android & iOS**
+A powerful Android application that detects installed games and provides system optimization before launching them for maximum FPS performance.
 
 [![Build](https://github.com/ernyweb/we/actions/workflows/build.yml/badge.svg)](https://github.com/ernyweb/we/actions/workflows/build.yml)
 
 ## ✨ Features
 
-- ✅ **100% Native C++** - No Unity, no web technologies
-- ✅ **Cross-Platform** - Android (arm64/armv7) & iOS (arm64)
-- ✅ **Fully Offline** - No internet required
+- ✅ **Auto-detect games** - Intelligent game discovery from installed apps
+- ✅ **FPS Boost Engine** - RAM cleanup, background app termination
+- ✅ **Performance Monitoring** - Real-time FPS, CPU, RAM, temperature tracking
+- ✅ **Beautiful UI** - Material Design with game grid
+- ✅ **One-tap Launch** - Launch games with instant optimization
+- ✅ **100% Kotlin** - Pure Android, no native code
 - ✅ **Auto Build** - GitHub Actions CI/CD pipeline
-- ✅ **OpenGL ES 3.0** - Modern 3D graphics
-- ✅ **Touch Controls** - Swipe to move, tap to jump
-- ✅ **10 Characters** - Runner, Chicken, Roblox, Horse, Ninja, Astronaut, Knight, Alien, Penguin, Slime
-- ✅ **Day/Night Cycle** - Dynamic lighting (140s cycle)
-- ✅ **Local Storage** - Auto device ID, saved scores
-- ✅ **Multi-language** - EN, TR, ES
+- ✅ **Minimal Dependencies** - AndroidX only
 
 ## 🚀 Quick Start
 
-**GitHub Actions ile otomatik build:**
+### From Source
+```bash
+git clone https://github.com/ernyweb/we.git
+cd we
+./gradlew assembleRelease
+```
 
-1. Bu repo'yu fork/clone et
-2. GitHub'a push yap
-3. Actions sekmesinden APK/IPA indir
+### From GitHub Releases
+Download latest APK from [Releases](https://github.com/ernyweb/we/releases)
 
-**Detaylı build talimatları:** [BUILD.md](BUILD.md)
+```bash
+adb install app-release.apk
+```
 
-## 🎮 Controls
+## 🔧 Tech Stack
 
-- **Swipe Left/Right:** Change lane
-- **Swipe Up / Tap:** Jump
-
-## 💾 Local Save Data
-
-- DeviceId (auto-generated UUID)
-- BestScore
-- TotalGames
-- Language (EN/TR/ES)
-- Settings (volume, graphics quality)
+- **Language**: Kotlin
+- **Min SDK**: Android 24 (Android 7.0)  
+- **Target SDK**: Android 34
+- **Build**: Gradle with Kotlin DSL
+- **Dependencies**: AndroidX, Material Design
 
 ## 📂 Project Structure
 
 ```
-src/           # C++ source code
-CMakeLists.txt # Build configuration
-.github/       # GitHub Actions workflow
-BUILD.md       # Detailed build instructions
+app/
+├── build.gradle.kts
+├── src/main/
+│   ├── AndroidManifest.xml
+│   ├── java/com/gamebooster/launcher/
+│   │   ├── MainActivity.kt         # Main activity
+│   │   ├── GameDetector.kt         # Game discovery
+│   │   ├── GameLauncher.kt         # Launch manager
+│   │   ├── FpsBooster.kt           # Optimization engine
+│   │   └── GameAdapter.kt          # UI adapter
+│   └── res/layout/ & values/
 ```
+
+## 📋 Permissions
+
+- `GET_TASKS` - List running processes
+- `KILL_BACKGROUND_PROCESSES` - Terminate apps
+- `QUERY_ALL_PACKAGES` - Scan installed games
+- `INTERNET` - (optional) future features
+
+## 🚀 Build & Deploy
+
+GitHub Actions automatically:
+1. Builds APK on push
+2. Creates release with APK
+3. Keeps artifacts for 30 days
+
+See `.github/workflows/build.yml`
+
+## 🎯 How It Works
+
+1. **Detect**: Scans device for games using keywords
+2. **Optimize**: Cleans RAM, stops background apps
+3. **Launch**: Starts game with improved performance
+4. **Monitor**: Shows real-time stats (FPS, CPU, RAM, temp)
 
 ---
 
-**Made with ❤️ in C++**
+**Built with ❤️ in Kotlin for gamers**
+
