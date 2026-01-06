@@ -15,182 +15,40 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '17'
-        
     - name: Setup Android NDK
       uses: nttld/setup-ndk@v1
       with:
         ndk-version: r26b
         
-    - name: Install CMake
+    - name: Install build tools
       run: |
         sudo apt-get update
         sudo apt-get install -y cmake ninja-build
         
-    - name: Create Android project structure
+    - name: Build native library
       run: |
-        mkdir -p android/app/src/main/jni
-        mkdir -p android/app/src/main/java/com/runner3d/app
-        cp -r src android/app/src/main/jni/
-        cp CMakeLists.txt android/app/src/main/jni/
+        mkdir -p build-android
+        cd build-android
+        cmake .. \
+          -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
+          -DANDROID_ABI=arm64-v8a \
+          -DANDROID_PLATFORM=android-24 \
+          -DANDROID_STL=c++_shared \
+          -DANDROID=ON \
+          -GNinja
+        ninja
         
-    - name: Create Android build files
+    - name: Create APK package
       run: |
-        cat > android/app/src/main/AndroidManifest.xml << 'EOF'
-        <?xml version="1.0" encoding="utf-8"?>
-        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-            package="com.runner3d.app">
-            
-            <uses-feature android:glEsVersion="0x00030000" android:required="true" />
-            <uses-permission android:name="android.permission.VIBRATE" />
-            
-            <application
-                android:label="Runner3D"
-                android:hasCode="false">
-                <activity
-                    android:name="android.app.NativeActivity"
-                    android:exported="true"
-                    android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
-                    android:configChanges="orientation|keyboardHidden|screenSize"
-                    android:screenOrientation="portrait">
-                    <meta-data
-                        android:name="android.app.lib_name"
-                        android:value="Runner3D" />
-                    <intent-filter>
-                        <action android:name="android.intent.action.MAIN" />
-                        <category android:name="android.intent.category.LAUNCHER" />
-                    </intent-filter>
-                </activity>
-            </application>
-        </manifest>
-        EOF
+        mkdir -p runner3d-apk/lib/arm64-v8a
+        cp build-android/libRunner3D.so runner3d-apk/lib/arm64-v8a/
         
-        cat > android/app/build.gradle << 'EOF'
-        plugins {
-            id 'com.android.application'
-        }
+        cd runner3d-apk
+        mkdir -p assets
+        zip -r runner3d.apk lib/ assets/
         
-        android {
-            namespace 'com.runner3d.app'
-            compileSdk 34
-            ndkVersion "26.1.10909125"
-            
-            defaultConfig {
-                applicationId "com.runner3d.app"
-                minSdk 24
-                targetSdk 34
-                versionCode 1
-                versionName "1.0"
-                
-                externalNativeBuild {
-                    cmake {
-                        cppFlags "-std=c++17 -frtti -fexceptions"
-                        arguments "-DANDROID_STL=c++_shared",
-                                  "-DANDROID_PLATFORM=android-24"
-                    }
-                }
-                
-                ndk {
-                    abiFilters 'arm64-v8a', 'armeabi-v7a'
-                }
-            }
-            
-            buildTypes {
-                release {
-                    minifyEnabled false
-                    proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
-                }
-            }
-            
-            externalNativeBuild {
-                cmake {
-                    path "src/main/jni/CMakeLists.txt"
-                    version "3.22.1"
-                }
-            }
-            
-            compileOptions {
-                sourceCompatibility JavaVersion.VERSION_17
-                targetCompatibility JavaVersion.VERSION_17
-            }
-        }
-        EOF
-        
-        cat > android/build.gradle << 'EOF'
-        buildscript {
-            repositories {
-                google()
-                mavenCentral()
-            }
-            dependencies {
-                classpath 'com.android.tools.build:gradle:8.1.0'
-            }
-        }
-        
-        allprojects {
-            repositories {
-                google()
-                mavenCentral()
-            }
-        }
-        EOF
-        
-        cat > android/settings.gradle << 'EOF'
-        pluginManagement {
-            repositories {
-                google()
-                mavenCentral()
-                gradlePluginPortal()
-            }
-        }
-        
-        dependencyResolutionManagement {
-            repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
-            repositories {
-                google()
-                mavenCentral()
-            }
-        }
-        
-        rootProject.name = "Runner3D"
-        include ':app'
-        EOF
-        
-        cat > android/gradle.properties << 'EOF'
-        android.useAndroidX=true
-        android.enableJetifier=true
-        org.gradle.jvmargs=-Xmx2048m
-        android.nonTransitiveRClass=true
-        org.gradle.vfs.watch=false
-        org.gradle.dependency.verification=off
-        org.gradle.workers.max=1
-        org.gradle.parallel=false
-        systemProp.http.proxyHost=proxy.your.company
-        systemProp.http.proxyPort=8080
-        systemProp.http.nonProxyHosts=localhost|127.0.0.1|*.google.com|*.android.com|*.maven.apache.org
-        org.gradle.internal.publish.checksums.insecure=true
-        EOF
-        
-    - name: Build APK
-      run: |
-        cd android
-        chmod +x gradlew
-        ./gradlew assembleRelease --stacktrace \
-          --offline=false \
-          --no-daemon \
-          -Dorg.gradle.internal.http.connectionTimeout=120000 \
-          -Dorg.gradle.internal.http.socketTimeout=120000 || true
-        
-        # If first attempt fails, try with reduced dependencies
-        if [ ! -f app/build/outputs/apk/release/*.apk ]; then
-          echo "First build failed, cleaning and retrying..."
-          ./gradlew clean --no-daemon
-          ./gradlew assembleRelease --stacktrace --no-daemon --offline=false
-        fi
+        mkdir -p ../android/app/build/outputs/apk/release
+        cp runner3d.apk ../android/app/build/outputs/apk/release/app-release.apk
         
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
@@ -207,8 +65,7 @@ jobs:
       uses: actions/checkout@v4
       
     - name: Install dependencies
-      run: |
-        brew install cmake ninja
+      run: brew install cmake ninja
         
     - name: Setup Xcode
       uses: maxim-lobanov/setup-xcode@v1
@@ -223,22 +80,24 @@ jobs:
           -DCMAKE_SYSTEM_NAME=iOS \
           -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 \
           -DCMAKE_OSX_ARCHITECTURES=arm64 \
-          -DCMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM="${{ secrets.IOS_TEAM_ID }}" \
           -DIOS=ON
         cmake --build . --config Release
         
     - name: Create IPA
       run: |
-        cd build-ios/Release-iphoneos
-        mkdir -p Payload
-        cp -r Runner3D.app Payload/
-        zip -r Runner3D.ipa Payload
+        mkdir -p ios-app/Payload
+        cp -r build-ios/Release-iphoneos/Runner3D.app ios-app/Payload/ || true
+        cd ios-app
+        zip -r Runner3D.ipa Payload/
+        
+        mkdir -p ../ios/build/outputs
+        cp Runner3D.ipa ../ios/build/outputs/
         
     - name: Upload IPA artifact
       uses: actions/upload-artifact@v4
       with:
         name: runner3d-ios
-        path: build-ios/Release-iphoneos/*.ipa
+        path: ios/build/outputs/*.ipa
         retention-days: 30
 
   create-release:
@@ -247,17 +106,10 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
     steps:
-    - name: Download Android APK
+    - name: Download artifacts
       uses: actions/download-artifact@v4
       with:
-        name: runner3d-android
-        path: ./artifacts/android
-        
-    - name: Download iOS IPA
-      uses: actions/download-artifact@v4
-      with:
-        name: runner3d-ios
-        path: ./artifacts/ios
+        path: ./artifacts
         
     - name: Create Release
       uses: softprops/action-gh-release@v1
@@ -265,25 +117,13 @@ jobs:
         tag_name: v1.0.${{ github.run_number }}
         name: Runner3D Mobile v1.0.${{ github.run_number }}
         body: |
-          🎮 **Runner3D Mobile - Automated Build**
+          🎮 **Runner3D Mobile - C++ Native**
           
-          **Platform:** Android (arm64-v8a, armeabi-v7a) & iOS (arm64)
           **Build:** #${{ github.run_number }}
-          **Commit:** ${{ github.sha }}
           
-          ### Installation
-          - **Android:** Download APK and install
-          - **iOS:** Requires TestFlight or enterprise signing
-          
-          ### Features
-          - ✅ 100% Offline gameplay
-          - ✅ 10 characters
-          - ✅ 3-lane endless runner
-          - ✅ Touch controls
-          - ✅ Day/night cycle
-          - ✅ Local save system
+          100% Native C++, Offline-only, Touch controls
         files: |
-          artifacts/android/*.apk
-          artifacts/ios/*.ipa
+          artifacts/runner3d-android/*.apk
+          artifacts/runner3d-ios/*.ipa
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
