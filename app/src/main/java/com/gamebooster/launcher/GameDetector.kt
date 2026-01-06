@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
+import android.util.Log
 
 /**
  * Cihazda yüklü olan oyunları bulur ve yönetir
@@ -11,6 +12,7 @@ import android.graphics.drawable.Drawable
 class GameDetector(private val context: Context) {
 
     private val packageManager: PackageManager = context.packageManager
+    private val TAG = "GameDetector"
 
     /**
      * Cihazda yüklü tüm oyunları bul
@@ -18,50 +20,87 @@ class GameDetector(private val context: Context) {
     fun findInstalledGames(): List<GameInfo> {
         val games = mutableListOf<GameInfo>()
         
-        val packages = packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
-        
-        packages.forEach { appInfo ->
-            // Google Play'den indirilen uygulamalar oyun olabilir
-            // Basit heuristic: kategori kontrol et veya oyun marketi bilgisini kontrol et
-            if (isLikelyGame(appInfo)) {
+        return try {
+            val packages = try {
+                packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to get installed apps: ${e.message}")
+                return emptyList()
+            }
+            
+            if (packages == null || packages.isEmpty()) {
+                Log.d(TAG, "No packages found")
+                return emptyList()
+            }
+            
+            packages.forEach { appInfo ->
                 try {
-                    val label = packageManager.getApplicationLabel(appInfo).toString()
-                    val icon = packageManager.getApplicationIcon(appInfo)
+                    // Sistem uygulamalarını hariç tut
+                    if ((appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0) {
+                        return@forEach
+                    }
                     
-                    games.add(GameInfo(
-                        name = label,
-                        packageName = appInfo.packageName,
-                        icon = icon,
-                        isSystemApp = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0,
-                        installTime = System.currentTimeMillis()
-                    ))
+                    // Google Play'den indirilen uygulamalar oyun olabilir
+                    if (isLikelyGame(appInfo)) {
+                        try {
+                            val label = try {
+                                packageManager.getApplicationLabel(appInfo).toString()
+                            } catch (e: Exception) {
+                                appInfo.packageName
+                            }
+                            
+                            val icon = try {
+                                packageManager.getApplicationIcon(appInfo)
+                            } catch (e: Exception) {
+                                packageManager.defaultActivityIcon
+                            }
+                            
+                            games.add(GameInfo(
+                                name = label,
+                                packageName = appInfo.packageName,
+                                icon = icon,
+                                isSystemApp = false,
+                                installTime = System.currentTimeMillis()
+                            ))
+                        } catch (e: Exception) {
+                            Log.d(TAG, "Error adding game ${appInfo.packageName}: ${e.message}")
+                        }
+                    }
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    Log.d(TAG, "Error processing app: ${e.message}")
                 }
             }
+            
+            Log.d(TAG, "Found ${games.size} games")
+            games.sortedByDescending { it.installTime }
+        } catch (e: Exception) {
+            Log.e(TAG, "findInstalledGames error: ${e.message}")
+            emptyList()
         }
-        
-        return games.sortedByDescending { it.installTime }
     }
 
     private fun isLikelyGame(appInfo: ApplicationInfo): Boolean {
-        // Sistem uygulamalarını hariç tut
-        if ((appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0) {
-            return false
-        }
+        return try {
+            // Çok bilinen oyun kategorileri
+            val gameKeywords = listOf(
+                "game", "candy", "poker", "clash", "royal", "legend", "hero", 
+                "fantasy", "adventure", "puzzle", "racing", "shooting", "battle",
+                "simulator", "craft", "tycoon", "pvp", "moba", "rpg"
+            )
 
-        // Çok bilinen oyun kategorileri
-        val gameKeywords = listOf(
-            "game", "candy", "poker", "clash", "royal", "legend", "hero", 
-            "fantasy", "adventure", "puzzle", "racing", "shooting", "battle",
-            "simulator", "craft", "tycoon", "pvp", "moba", "rpg"
-        )
-
-        val appName = appInfo.packageName.lowercase()
-        
-        return gameKeywords.any { keyword ->
-            appName.contains(keyword) || 
-            appInfo.loadLabel(packageManager).toString().lowercase().contains(keyword)
+            val appName = appInfo.packageName.lowercase()
+            val appLabel = try {
+                appInfo.loadLabel(packageManager).toString().lowercase()
+            } catch (e: Exception) {
+                ""
+            }
+            
+            gameKeywords.any { keyword ->
+                appName.contains(keyword) || appLabel.contains(keyword)
+            }
+        } catch (e: Exception) {
+            Log.d(TAG, "isLikelyGame error: ${e.message}")
+            false
         }
     }
 }
