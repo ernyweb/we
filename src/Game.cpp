@@ -60,18 +60,22 @@ void Game::Run() {
     lastFrameTime_ = 0; // Platform-specific time function needed
     
     while (isRunning_) {
-        // Calculate delta time
-        uint64_t currentTime = 0; // Platform-specific
-        float deltaTime = 0.016f; // ~60 FPS fallback
-        
-        ProcessInput();
-        
-        if (!isPaused_) {
-            Update(deltaTime);
-        }
-        
-        Render();
+        RunFrame();
     }
+}
+
+void Game::RunFrame() {
+    // Calculate delta time
+    uint64_t currentTime = 0; // Platform-specific
+    float deltaTime = 0.016f; // ~60 FPS fallback
+    
+    ProcessInput();
+    
+    if (!isPaused_) {
+        Update(deltaTime);
+    }
+    
+    Render();
 }
 
 void Game::ProcessInput() {

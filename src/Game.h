@@ -16,7 +16,8 @@ public:
     ~Game();
     
     bool Initialize();
-    void Run();
+    void Run();          // Desktop/iOS için sonsuz loop
+    void RunFrame();     // Android için tek frame
     void Shutdown();
     
 private:
