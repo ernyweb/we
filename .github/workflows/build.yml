@@ -1,4 +1,4 @@
-name: Build Android & iOS
+name: Build Game Launcher
 
 on:
   push:
@@ -8,6 +8,55 @@ on:
   workflow_dispatch:
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 11
+      uses: actions/setup-java@v3
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Make gradlew executable
+      run: chmod +x ./gradlew
+
+    - name: Build APK (Release)
+      run: ./gradlew assembleRelease --stacktrace
+
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: game-launcher-apk
+        path: app/build/outputs/apk/release/app-release.apk
+        retention-days: 30
+
+    - name: Create Release
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v1.0.${{ github.run_number }}
+        name: Game Launcher v1.0.${{ github.run_number }}
+        body: |
+          🎮 **Game Launcher with FPS Booster**
+          
+          **Features:**
+          - Auto-detect installed games
+          - Optimize system before game launch
+          - RAM cleanup & background app termination
+          - Real-time performance monitoring
+          - One-tap game launch with boost
+          
+          **Build:** #${{ github.run_number }}
+        files: app/build/outputs/apk/release/app-release.apk
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   build-android:
     runs-on: ubuntu-latest
     
@@ -15,170 +64,15 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Setup Android NDK
-      uses: nttld/setup-ndk@v1
+    - name: Set up JDK 11
+      uses: actions/setup-java@v3
       with:
-        ndk-version: r26b
-        
-    - name: Install build tools
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y cmake ninja-build
-        
-    - name: Build native library
-      run: |
-        mkdir -p build-android
-        cd build-android
-        cmake .. \
-          -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
-          -DANDROID_ABI=arm64-v8a \
-          -DANDROID_PLATFORM=android-24 \
-          -DANDROID_STL=c++_shared \
-          -DANDROID=ON \
-          -GNinja
-        ninja
-        
-    - name: Create APK package
-      run: |
-        # Create AndroidManifest.xml
-        mkdir -p runner3d-apk/lib/arm64-v8a
-        cp build-android/libRunner3D.so runner3d-apk/lib/arm64-v8a/
-        
-        cat > runner3d-apk/AndroidManifest.xml << 'EOF'
-        <?xml version="1.0" encoding="utf-8"?>
-        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-            package="com.runner3d.app"
-            android:versionCode="1"
-            android:versionName="1.0">
-            <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="34" />
-            <uses-feature android:glEsVersion="0x00030000" android:required="true" />
-            <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-            <application android:hasCode="false" android:label="Runner3D" android:debuggable="true">
-                <activity android:name="android.app.NativeActivity" android:label="Runner3D"
-                    android:configChanges="orientation|keyboardHidden|screenSize" android:exported="true">
-                    <meta-data android:name="android.app.lib_name" android:value="Runner3D" />
-                    <intent-filter>
-                        <action android:name="android.intent.action.MAIN" />
-                        <category android:name="android.intent.category.LAUNCHER" />
-                    </intent-filter>
-                </activity>
-            </application>
-        </manifest>
-        EOF
-        
-        cd runner3d-apk
-        mkdir -p assets
-        
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
-      
-    - name: Build and Sign APK
-      run: |
-        cd runner3d-apk
-        
-        # Create debug keystore
-        keytool -genkeypair -v -keystore ../debug.keystore -storepass android \
-          -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 \
-          -validity 10000 -dname "CN=Android Debug,O=Android,C=US" || true
-        
-        # Build APK with aapt
-        $ANDROID_HOME/build-tools/34.0.0/aapt package -f -M AndroidManifest.xml \
-          -I $ANDROID_HOME/platforms/android-34/android.jar -F runner3d-base.apk
-        
-        # Add native library
-        $ANDROID_HOME/build-tools/34.0.0/aapt add runner3d-base.apk lib/arm64-v8a/libRunner3D.so
-        
-        # Align
-        $ANDROID_HOME/build-tools/34.0.0/zipalign -f 4 runner3d-base.apk runner3d-aligned.apk
-        
-        # Sign
-        $ANDROID_HOME/build-tools/34.0.0/apksigner sign --ks ../debug.keystore \
-          --ks-pass pass:android --key-pass pass:android \
-          --out runner3d-signed.apk runner3d-aligned.apk
-        
-        mkdir -p ../android/app/build/outputs/apk/release
-        cp runner3d-signed.apk ../android/app/build/outputs/apk/release/app-release.apk
-        
-    - name: Upload APK artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: runner3d-android
-        path: android/app/build/outputs/apk/release/*.apk
-        retention-days: 30
+        java-version: '11'
+        distribution: 'temurin'
 
-  build-ios:
-    runs-on: macos-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Install dependencies
-      run: brew install cmake ninja
-        
-    - name: Setup Xcode
-      uses: maxim-lobanov/setup-xcode@v1
-      with:
-        xcode-version: latest-stable
-        
-    - name: Build for iOS
-      run: |
-        mkdir -p build-ios
-        cd build-ios
-        cmake .. -GXcode \
-          -DCMAKE_SYSTEM_NAME=iOS \
-          -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 \
-          -DCMAKE_OSX_ARCHITECTURES=arm64 \
-          -DIOS=ON
-        xcodebuild -project Runner3D.xcodeproj \
-          -scheme ALL_BUILD \
-          -configuration Release \
-          -sdk iphoneos \
-          CODE_SIGN_IDENTITY="" \
-          CODE_SIGNING_REQUIRED=NO \
-          CODE_SIGNING_ALLOWED=NO
-        
-    - name: Create IPA
-      run: |
-        mkdir -p ios-app/Payload
-        cp -r build-ios/Release-iphoneos/Runner3D.app ios-app/Payload/ || true
-        cd ios-app
-        zip -r Runner3D.ipa Payload/
-        
-        mkdir -p ../ios/build/outputs
-        cp Runner3D.ipa ../ios/build/outputs/
-        
-    - name: Upload IPA artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: runner3d-ios
-        path: ios/build/outputs/*.ipa
-        retention-days: 30
+    - name: Make gradlew executable
+      run: chmod +x ./gradlew
 
-  create-release:
-    needs: [build-android, build-ios]
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    
-    steps:
-    - name: Download artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: ./artifacts
-        
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: v1.0.${{ github.run_number }}
-        name: Runner3D Mobile v1.0.${{ github.run_number }}
-        body: |
-          🎮 **Runner3D Mobile - C++ Native**
-          
-          **Build:** #${{ github.run_number }}
-          
-          100% Native C++, Offline-only, Touch controls
-        files: |
-          artifacts/runner3d-android/*.apk
-          artifacts/runner3d-ios/*.ipa
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Build APK
+      run: ./gradlew assembleRelease --stacktrace
+
