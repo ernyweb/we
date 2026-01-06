@@ -17,44 +17,82 @@ Game::~Game() = default;
 bool Game::Initialize() {
     LOG("Initializing Runner3D...");
     
-    // Initialize random seed
-    srand(static_cast<unsigned>(time(nullptr)));
+    try {
+        // Initialize random seed
+        srand(static_cast<unsigned>(time(nullptr)));
+        
+        // Create core systems
+        renderer_ = std::make_unique<Renderer>();
+        if (!renderer_->Initialize(Config::DEFAULT_WIDTH, Config::DEFAULT_HEIGHT)) {
+            LOG("Failed to initialize renderer");
+            return false;
+        }
+        
+        inputManager_ = std::make_unique<InputManager>();
+        audioManager_ = std::make_unique<AudioManager>();
+        if (!audioManager_->Initialize()) {
+            LOG("Warning: Audio initialization failed");
+        }
+        
+        saveManager_ = std::make_unique<SaveManager>();
+        if (!saveManager_->Initialize()) {
+            LOG("Warning: Save manager initialization failed");
+        }
+        
+        // Load saved data
+        saveManager_->Load();
+        bestScore_ = saveManager_->GetBestScore();
+        
+        // Create player
+        player_ = std::make_unique<Player>();
+        if (!player_) {
+            LOG("Failed to create player");
+            return false;
+        }
+        player_->ChangeCharacter(saveManager_->GetSelectedCharacter());
+        
+        // Set initial distance goal
+        distanceGoal_ = Config::DIST_MIN + 
+                        static_cast<float>(rand()) / RAND_MAX * 
+                        (Config::DIST_MAX - Config::DIST_MIN);
+        
+        isRunning_ = true;
+        LOG("Game initialized successfully");
+        return true;
+    } catch (const std::exception& e) {
+        LOG("Exception in Initialize: %s", e.what());
+        return false;
+    } catch (...) {
+        LOG("Unknown exception in Initialize");
+        return false;
+    }
+}
+
+#ifdef PLATFORM_ANDROID
+bool Game::SetNativeWindow(ANativeWindow* window) {
+    LOG("Game::SetNativeWindow called");
     
-    // Create core systems
-    renderer_ = std::make_unique<Renderer>();
-    if (!renderer_->Initialize(Config::DEFAULT_WIDTH, Config::DEFAULT_HEIGHT)) {
-        LOG("Failed to initialize renderer");
+    if (!window) {
+        LOG("ERROR: Null window passed to SetNativeWindow");
         return false;
     }
     
-    inputManager_ = std::make_unique<InputManager>();
-    audioManager_ = std::make_unique<AudioManager>();
-    if (!audioManager_->Initialize()) {
-        LOG("Warning: Audio initialization failed");
+    if (!renderer_) {
+        LOG("ERROR: Renderer not initialized");
+        return false;
     }
     
-    saveManager_ = std::make_unique<SaveManager>();
-    if (!saveManager_->Initialize()) {
-        LOG("Warning: Save manager initialization failed");
+    // Pass window to renderer
+    if (!renderer_->SetNativeWindow(window)) {
+        LOG("ERROR: Renderer::SetNativeWindow failed");
+        return false;
     }
     
-    // Load saved data
-    saveManager_->Load();
-    bestScore_ = saveManager_->GetBestScore();
-    
-    // Create player
-    player_ = std::make_unique<Player>();
-    player_->ChangeCharacter(saveManager_->GetSelectedCharacter());
-    
-    // Set initial distance goal
-    distanceGoal_ = Config::DIST_MIN + 
-                    static_cast<float>(rand()) / RAND_MAX * 
-                    (Config::DIST_MAX - Config::DIST_MIN);
-    
-    isRunning_ = true;
-    LOG("Game initialized successfully");
-    return true;
+    // Now initialize game
+    LOG("Window set, initializing game...");
+    return Initialize();
 }
+#endif
 
 void Game::Run() {
     lastFrameTime_ = 0; // Platform-specific time function needed
@@ -65,17 +103,27 @@ void Game::Run() {
 }
 
 void Game::RunFrame() {
-    // Calculate delta time
-    uint64_t currentTime = 0; // Platform-specific
-    float deltaTime = 0.016f; // ~60 FPS fallback
-    
-    ProcessInput();
-    
-    if (!isPaused_) {
-        Update(deltaTime);
+    if (!isRunning_ || !player_ || !renderer_) {
+        return;
     }
     
-    Render();
+    try {
+        // Calculate delta time
+        uint64_t currentTime = 0; // Platform-specific
+        float deltaTime = 0.016f; // ~60 FPS fallback
+        
+        ProcessInput();
+        
+        if (!isPaused_) {
+            Update(deltaTime);
+        }
+        
+        Render();
+    } catch (const std::exception& e) {
+        LOG("Exception in RunFrame: %s", e.what());
+    } catch (...) {
+        LOG("Unknown exception in RunFrame");
+    }
 }
 
 void Game::ProcessInput() {

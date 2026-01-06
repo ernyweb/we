@@ -3,27 +3,171 @@
 #ifdef PLATFORM_ANDROID
 #include <GLES3/gl3.h>
 #include <EGL/egl.h>
+#include <android/log.h>
+#define LOGV(...) __android_log_print(ANDROID_LOG_VERBOSE, "Renderer", __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "Renderer", __VA_ARGS__)
 #elif defined(PLATFORM_IOS)
 #include <OpenGLES/ES3/gl.h>
 #else
 // Desktop OpenGL headers would go here
+#include <iostream>
+#define LOGV(...) printf(__VA_ARGS__); printf("\n")
+#define LOGE(...) printf(__VA_ARGS__); printf("\n")
+#endif
+
+// EGL globals for Android
+#ifdef PLATFORM_ANDROID
+static EGLDisplay display_ = EGL_NO_DISPLAY;
+static EGLContext context_ = EGL_NO_CONTEXT;
+static EGLSurface surface_ = EGL_NO_SURFACE;
+static ANativeWindow* nativeWindow_ = nullptr;
 #endif
 
 Renderer::Renderer() = default;
 Renderer::~Renderer() = default;
 
 bool Renderer::Initialize(int width, int height) {
+    LOGV("Renderer::Initialize(%d, %d)", width, height);
     width_ = width;
     height_ = height;
+    
+#ifdef PLATFORM_ANDROID
+    if (!InitializeEGL()) {
+        LOGE("Failed to initialize EGL");
+        return false;
+    }
+#endif
     
     InitializeGL();
     SetupMatrices();
     
+    LOGV("Renderer initialized successfully");
     return true;
 }
 
+#ifdef PLATFORM_ANDROID
+bool Renderer::InitializeEGL() {
+    LOGV("InitializeEGL() called");
+    
+    // Get the display
+    display_ = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    if (display_ == EGL_NO_DISPLAY) {
+        LOGE("eglGetDisplay failed");
+        return false;
+    }
+    
+    // Initialize EGL
+    EGLint major, minor;
+    if (!eglInitialize(display_, &major, &minor)) {
+        LOGE("eglInitialize failed");
+        return false;
+    }
+    LOGV("EGL version: %d.%d", major, minor);
+    
+    // Get config
+    EGLint configAttribs[] = {
+        EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+        EGL_BLUE_SIZE, 8,
+        EGL_GREEN_SIZE, 8,
+        EGL_RED_SIZE, 8,
+        EGL_ALPHA_SIZE, 8,
+        EGL_DEPTH_SIZE, 16,
+        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
+        EGL_NONE
+    };
+    
+    EGLConfig config;
+    EGLint numConfigs;
+    if (!eglChooseConfig(display_, configAttribs, &config, 1, &numConfigs)) {
+        LOGE("eglChooseConfig failed");
+        return false;
+    }
+    if (numConfigs == 0) {
+        LOGE("No valid EGL config found");
+        return false;
+    }
+    
+    // Create context
+    EGLint contextAttribs[] = {
+        EGL_CONTEXT_CLIENT_VERSION, 3,
+        EGL_NONE
+    };
+    
+    context_ = eglCreateContext(display_, config, EGL_NO_CONTEXT, contextAttribs);
+    if (context_ == EGL_NO_CONTEXT) {
+        LOGE("eglCreateContext failed");
+        return false;
+    }
+    
+    LOGV("EGL initialized successfully");
+    return true;
+}
+
+bool Renderer::SetNativeWindow(ANativeWindow* window) {
+    LOGV("SetNativeWindow called");
+    
+    if (!window) {
+        LOGE("Null window passed to SetNativeWindow");
+        return false;
+    }
+    
+    if (!display_ || display_ == EGL_NO_DISPLAY) {
+        LOGE("EGL display not initialized");
+        return false;
+    }
+    
+    nativeWindow_ = window;
+    
+    // Get config again
+    EGLint configAttribs[] = {
+        EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+        EGL_BLUE_SIZE, 8,
+        EGL_GREEN_SIZE, 8,
+        EGL_RED_SIZE, 8,
+        EGL_ALPHA_SIZE, 8,
+        EGL_DEPTH_SIZE, 16,
+        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
+        EGL_NONE
+    };
+    
+    EGLConfig config;
+    EGLint numConfigs;
+    if (!eglChooseConfig(display_, configAttribs, &config, 1, &numConfigs)) {
+        LOGE("eglChooseConfig failed in SetNativeWindow");
+        return false;
+    }
+    
+    // Create surface
+    surface_ = eglCreateWindowSurface(display_, config, window, nullptr);
+    if (surface_ == EGL_NO_SURFACE) {
+        LOGE("eglCreateWindowSurface failed");
+        return false;
+    }
+    
+    // Make current
+    if (!eglMakeCurrent(display_, surface_, surface_, context_)) {
+        LOGE("eglMakeCurrent failed");
+        return false;
+    }
+    
+    LOGV("Native window set successfully");
+    return true;
+}
+#endif
+
 void Renderer::Shutdown() {
-    // Cleanup OpenGL resources
+#ifdef PLATFORM_ANDROID
+    if (display_ != EGL_NO_DISPLAY) {
+        eglMakeCurrent(display_, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        if (surface_ != EGL_NO_SURFACE) {
+            eglDestroySurface(display_, surface_);
+        }
+        if (context_ != EGL_NO_CONTEXT) {
+            eglDestroyContext(display_, context_);
+        }
+        eglTerminate(display_);
+    }
+#endif
 }
 
 void Renderer::InitializeGL() {
