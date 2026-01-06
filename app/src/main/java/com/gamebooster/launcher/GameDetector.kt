@@ -33,7 +33,7 @@ class GameDetector(private val context: Context) {
                         packageName = appInfo.packageName,
                         icon = icon,
                         isSystemApp = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0,
-                        installTime = appInfo.firstInstallTime
+                        installTime = System.currentTimeMillis()
                     ))
                 } catch (e: Exception) {
                     e.printStackTrace()
