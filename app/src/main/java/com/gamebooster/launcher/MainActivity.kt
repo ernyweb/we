@@ -87,11 +87,35 @@ class MainActivity : AppCompatActivity() {
         progressBar.visibility = android.view.View.VISIBLE
         
         Thread {
-            val games = gameDetector.findInstalledGames()
-            runOnUiThread {
-                gameAdapter.updateGames(games)
-                progressBar.visibility = android.view.View.GONE
-                statsText.text = "${games.size} oyun bulundu"
+            try {
+                val games = try {
+                    gameDetector.findInstalledGames()
+                } catch (e: Exception) {
+                    android.util.Log.e("MainActivity", "Error finding games: ${e.message}", e)
+                    emptyList()
+                }
+                
+                runOnUiThread {
+                    try {
+                        gameAdapter.updateGames(games)
+                        progressBar.visibility = android.view.View.GONE
+                        if (games.isEmpty()) {
+                            statsText.text = "❌ Oyun bulunamadı"
+                        } else {
+                            statsText.text = "${games.size} oyun bulundu"
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("MainActivity", "Error updating UI: ${e.message}")
+                        statsText.text = "❌ UI güncelleme hatası"
+                        progressBar.visibility = android.view.View.GONE
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Unexpected error in loadGames: ${e.message}", e)
+                runOnUiThread {
+                    statsText.text = "❌ Beklenmeyen hata"
+                    progressBar.visibility = android.view.View.GONE
+                }
             }
         }.start()
     }
