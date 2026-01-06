@@ -74,20 +74,33 @@ class FpsBooster(private val context: Context) {
 
     private fun killBackgroundApps() {
         try {
-            val runningApps = activityManager.runningAppProcesses ?: return
+            val runningApps = try {
+                activityManager.runningAppProcesses
+            } catch (e: Exception) {
+                android.util.Log.e("FpsBooster", "Failed to get running apps: ${e.message}")
+                return
+            }
+            
+            if (runningApps == null || runningApps.isEmpty()) {
+                return
+            }
 
             runningApps.forEach { process ->
-                // Kendi uygulamayı ve sistem uygulamalarını öldürme
-                if (process.pid != android.os.Process.myPid() && !isSystemApp(process.processName)) {
-                    try {
-                        Process.killProcess(process.pid)
-                    } catch (e: Exception) {
-                        // Ignore
+                try {
+                    // Kendi uygulamayı ve sistem uygulamalarını öldürme
+                    if (process.pid != android.os.Process.myPid() && !isSystemApp(process.processName)) {
+                        try {
+                            Process.killProcess(process.pid)
+                        } catch (e: Exception) {
+                            android.util.Log.d("FpsBooster", "Could not kill process: ${e.message}")
+                        }
                     }
+                } catch (e: Exception) {
+                    android.util.Log.d("FpsBooster", "Error processing app: ${e.message}")
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("FpsBooster", "killBackgroundApps error: ${e.message}")
         }
     }
 
