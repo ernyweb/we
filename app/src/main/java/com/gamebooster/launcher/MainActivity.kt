@@ -6,6 +6,11 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.GridLayoutManager
 import android.widget.ProgressBar
 import android.widget.TextView
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import android.os.Build
 
 class MainActivity : AppCompatActivity() {
 
@@ -15,6 +20,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var recyclerView: RecyclerView
     private lateinit var progressBar: ProgressBar
     private lateinit var statsText: TextView
+    
+    companion object {
+        private const val PERMISSION_REQUEST_CODE = 100
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -28,7 +37,42 @@ class MainActivity : AppCompatActivity() {
         statsText = findViewById(R.id.statsText)
 
         setupRecyclerView()
-        loadGames()
+        
+        // Android 11+ cihazlarda permission iste
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val requiredPermissions = listOf(
+                Manifest.permission.QUERY_ALL_PACKAGES,
+                Manifest.permission.GET_TASKS,
+                Manifest.permission.KILL_BACKGROUND_PROCESSES
+            )
+            
+            val missingPermissions = requiredPermissions.filter {
+                ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+            }
+            
+            if (missingPermissions.isNotEmpty()) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    missingPermissions.toTypedArray(),
+                    PERMISSION_REQUEST_CODE
+                )
+            } else {
+                loadGames()
+            }
+        } else {
+            loadGames()
+        }
+    }
+    
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            loadGames()
+        }
     }
 
     private fun setupRecyclerView() {
