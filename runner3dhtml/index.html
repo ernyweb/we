@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Runner3D beta</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23ff6f61'/%3E%3Ctext x='50%' y='50%' font-size='10' text-anchor='middle' fill='white' dy='.35em'%3Er%3C/text%3E%3C/svg%3E">
+  <link rel="icon" href="favicon.svg">
+
+</head>
+<body>
+  <div id="menu" class="overlay">
+    <div class="menu-card">
+      <div class="menu-header">
+        <button id="lobbySettingsBtn" class="ghost-btn">Settings</button>
+      </div>
+      <div class="menu-body">
+        <h1>Runner3D Beta</h1>
+        <div class="char-nav">
+          <button id="charPrev" class="ghost-btn">⟵</button>
+          <div id="menuCharacter" class="menu-character" aria-label="Player preview">
+            <!-- 3D preview canvas is created dynamically by the game scripts -->
+          </div>
+          <button id="charNext" class="ghost-btn">⟶</button>
+        </div>
+        <div id="charLabel" class="char-label">Runner</div>
+        <p id="menuText">Use Left/Right arrows or touch left/right halves to change lanes. Avoid obstacles and survive as long as you can.!</p>
+        <div class="menu-auth">
+          <button id="menuSignBtn" class="ghost-btn">Sign in</button>
+          <button id="menuRegisterBtn" class="ghost-btn">Register</button>
+        </div>
+      </div>
+      <div class="menu-actions">
+        <button id="lobbyPlayBtn" class="primary-btn">Play</button>
+        <button id="menuGuestSmall" class="ghost-btn">Continue as Guest</button>
+      </div>
+      <p id="best">Best: 0</p>
+    </div>
+  </div>
+
+
+
+  <!-- Login / Register Modal -->
+  <div id="authModal" class="overlay" style="display:none">
+    <form id="authForm" onsubmit="return false;">
+      <h2 id="authTitle">Hesap</h2>
+      <input id="authUser" name="username" autocomplete="username" placeholder="Kullanıcı adı" style="padding:8px 10px;border-radius:8px;border:0;width:220px" />
+      <input id="authPass" name="password" type="password" autocomplete="current-password" placeholder="Şifre" style="padding:8px 10px;border-radius:8px;border:0;width:220px" />
+      <label id="rememberLabel" style="margin-top:6px"><input id="rememberMe" type="checkbox" /> Remember me (store locally)</label>
+      <div class="menuRow">
+        <button id="registerBtn" type="button">Kayıt Ol</button>
+        <button id="loginBtn" type="button">Giriş Yap</button>
+        <button id="guestBtn" type="button">Continue as Guest</button>
+        <button id="closeAuth" type="button">Kapat</button>
+      </div>
+      <p id="authNote" style="color:#bcd4ff;max-width:420px;text-align:center">Accounts are stored locally by default. To use a server (recommended for persistence), set `window.API_BASE` to your backend URL. When configured, accounts will be stored on the server automatically.</p>
+    </form>
+  </div>
+
+  <div id="settingsModal" class="overlay" style="display:none;max-width:640px;padding:20px;border-radius:12px">
+    <button id="closeSettingsX" class="modalClose" aria-label="Close settings">×</button>
+    <h2 id="settingsTitle">Settings</h2>
+    <div style="margin:8px 0"><label for="langSelect">Language</label><br/>
+      <select id="langSelect" style="padding:8px 10px;border-radius:6px;border:0;width:240px"></select>
+    </div>
+    <div style="margin:8px 0"><label for="fovRange">Field of view: <span id="fovValue">60</span>°</label><br/>
+      <input id="fovRange" type="range" min="40" max="100" value="60" style="width:260px" />
+    </div>
+    <div style="margin:8px 0"><label for="fogRange">Fog density: <span id="fogValue">0.02</span></label><br/>
+      <input id="fogRange" type="range" min="0" max="0.08" step="0.005" value="0.02" style="width:260px" />
+    </div>
+    <div style="margin:8px 0"><label for="viewRange">View distance: <span id="viewValue">1000</span></label><br/>
+      <input id="viewRange" type="range" min="400" max="5000" step="100" value="1000" style="width:260px" />
+    </div>
+    <div style="margin:8px 0"><label><input id="christmasChk" type="checkbox" /> Enable Christmas effect</label></div>
+    <div style="margin:8px 0"><label for="gfxSelect">Graphics quality</label><br/>
+      <select id="gfxSelect" style="padding:8px 10px;border-radius:6px;border:0;width:240px"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select>
+    </div>
+    <div style="margin:8px 0"><label for="resRange">Resolution scale: <span id="resValue">100</span>%</label><br/>
+      <input id="resRange" type="range" min="50" max="150" step="5" value="100" style="width:260px" />
+    </div>
+    <div style="margin:8px 0"><label for="audioVol">Music volume: <span id="audioVolValue">60</span>%</label><br/>
+      <div style="display:flex;gap:8px;align-items:center"><input id="audioVol" type="range" min="0" max="1" step="0.01" value="0.6" style="width:200px" /><button id="audioToggle" type="button">Mute</button></div>
+    </div>
+    <div style="margin:12px 0; padding:10px; border:1px solid rgba(255,255,255,0.08); border-radius:10px; background:rgba(255,255,255,0.03)">
+      <div id="settingsAccountStatus" style="font-weight:700;color:#e6eef8;margin-bottom:8px">Not signed in</div>
+      <div class="menuRow" style="flex-wrap:wrap;gap:8px">
+        <button id="settingsSignIn" type="button">Sign in</button>
+        <button id="settingsLogout" type="button" style="display:none;background:rgba(255,255,255,0.08);color:#bcd4ff;border:1px solid rgba(255,255,255,0.14)">Log out</button>
+      </div>
+    </div>
+    <div style="margin:8px 0"><label>Zombie types (toggle which appear):</label>
+      <div id="zombieTypeList" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px"></div>
+    </div>
+    <div class="menuRow"><button id="applySettingsBtn" type="button">Apply</button><button id="saveSettingsBtn" type="button">Save</button><button id="closeSettingsBtn" type="button" aria-label="Close settings">Close</button></div>
+ 
+  </div>
+
+    <div class="wrap">
+    <div id="gameContainer"></div>
+    <div id="hud" class="hud">Score: <span id="score">0</span></div>
+    <!-- Best shown left under the score -->
+    <div id="bestLeft" class="best-left">Best: <span id="bestValue">0</span></div>
+    <div id="speedo" class="speedo">
+      <svg viewBox="0 0 100 100" class="speedo-svg" aria-hidden="true">
+        <circle cx="50" cy="50" r="45" class="speedo-ring"/>
+        <line id="needle" x1="50" y1="50" x2="50" y2="15" class="needle" stroke-linecap="round"/>
+      </svg>
+      <div class="speedo-label"><span id="speedValue">0</span> km/h</div>
+    </div>
+    <div id="speedEffectLeft" class="speed-effect left"></div>
+    <div id="speedEffectRight" class="speed-effect right"></div>
+    <button id="fullscreenBtn" class="fullscreen-btn" aria-label="Fullscreen">⤢</button>
+  </div>
+
+  <!-- Leaderboard / Account info top-right -->
+  <div id="topPanel" class="top-panel">
+    <div id="userBox" class="user-box"><button id="openAuth">Sign in</button></div>
+  </div>
+
+  <!-- Target banner shown briefly when a run starts, plus a small persistent pill -->
+  <div id="targetBanner" style="display:none" aria-hidden="true">
+    <div class="finish-bar">
+      <div id="targetText" class="target-text">Escape from: <strong id="targetName">ZOMBIE</strong></div>
+      <img id="targetImg" class="target-img" src="" alt="target" />
+    </div>
+    <div id="targetProgress" class="target-progress">
+      <div class="tp-label">Target</div>
+      <div class="tp-bar"><div id="tpFill" class="tp-fill"></div></div>
+      <div class="tp-text"><span id="tpVal">0</span> / <span id="tpGoal">1500</span> m</div>
+    </div>
+  </div>
+  <div id="targetPill" style="display:none" aria-hidden="true">
+    <img id="pillImg" src="" alt="target" /><span id="pillName"></span>
+  </div>
+
+  <script>
+    // If you want the frontend to use the VPS backend, set this to your server URL.
+    // e.g. `window.API_BASE = 'http://localhost:4000'` for local testing or
+    // `window.API_BASE = 'https://your-vps.example.com'` in production.
+    window.API_BASE = window.API_BASE || '';
+  </script>
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.152.2/build/three.module.js';
+    // expose to global for compatibility with existing game code, then load game
+    window.THREE = THREE;
+    const s = document.createElement('script');
+    s.src = 'game.js';
+    s.defer = false;
+    document.body.appendChild(s);
+  </script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+["This file is a seed/example for the leaderboard. The running game pulls leaderboard data from browser localStorage.","To make this live you must run a backend that reads/writes these files and expose API endpoints."]
