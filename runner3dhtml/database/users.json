@@ -1,0 +1,1 @@
+["This file is a seed/example. The running game stores users in browser localStorage.","Stored format in localStorage: hex(base64(JSON)) where JSON = {username:{pass:<sha256-hex>,best:<number>}}."]

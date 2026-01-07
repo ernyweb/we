@@ -1,10 +1,12 @@
 package com.gamebooster.launcher;
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
+import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.util.Log;
@@ -43,6 +45,13 @@ public class MainActivity extends AppCompatActivity {
         statsText = findViewById(R.id.statsText);
 
         setupRecyclerView();
+
+        // Settings button
+        Button settingsButton = findViewById(R.id.settingsButton);
+        settingsButton.setOnClickListener(v -> {
+            Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
+            startActivity(intent);
+        });
 
         // Android 11+ cihazlarda permission iste
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {

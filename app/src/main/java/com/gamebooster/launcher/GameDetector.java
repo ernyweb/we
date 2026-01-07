@@ -103,10 +103,36 @@ public class GameDetector {
 
     private boolean isLikelyGame(ApplicationInfo appInfo) {
         try {
+            // Category kontrolü - en güvenilir yöntem
+            if (appInfo.category == ApplicationInfo.CATEGORY_GAME) {
+                Log.d(TAG, "Game detected by category");
+                return true;
+            }
+
+            // Genişletilmiş oyun anahtar kelimeleri
             String[] gameKeywords = {
-                    "game", "candy", "poker", "clash", "royal", "legend", "hero",
-                    "fantasy", "adventure", "puzzle", "racing", "shooting", "battle",
-                    "simulator", "craft", "tycoon", "pvp", "moba", "rpg"
+                    // Temel
+                    "game", "games", "oyun", "oyunlar",
+                    // Puzzle
+                    "candy", "puzzle", "match", "tetris", "blocks", "brick", "chess", "sudoku",
+                    // Kart
+                    "poker", "solitaire", "cards", "duel", "kart",
+                    // Strateji
+                    "clash", "royal", "heroes", "battle", "quest", "legend", "fantasy",
+                    // Action
+                    "racing", "race", "car", "shoot", "shooter", "arena", "fighter",
+                    // RPG
+                    "rpg", "adventure", "dungeon", "dragon", "wizard", "magic",
+                    // Multiplayer
+                    "pvp", "moba", "fps", "online", "online-battle",
+                    // Eğlence
+                    "simulator", "sim", "craft", "tycoon", "casual", "idle", "clicker",
+                    // Popular
+                    "angry", "bird", "king", "agar", "io", "slither", "flappy",
+                    // Publishers
+                    "supercell", "kabam", "scopely", "zynga", "playrix",
+                    // Türkçe
+                    "kral", "çatışma", "atış", "savaş"
             };
 
             String appName = appInfo.packageName.toLowerCase();
@@ -117,11 +143,29 @@ public class GameDetector {
                 appLabel = "";
             }
 
+            // Keyword match
             for (String keyword : gameKeywords) {
                 if (appName.contains(keyword) || appLabel.contains(keyword)) {
+                    Log.d(TAG, "Game keyword match: " + keyword);
                     return true;
                 }
             }
+
+            // Publisher pattern
+            String[] gamePublishers = {
+                    "com.supercell", "com.king.com", "com.playrix", "com.kabam",
+                    "com.scopely", "com.zynga", "com.gameloft", "com.outfit7",
+                    "com.disney", "com.ea.", "com.activision", "com.mojang",
+                    "com.bandainamcoent", "com.ubisoft"
+            };
+
+            for (String publisher : gamePublishers) {
+                if (appName.startsWith(publisher)) {
+                    Log.d(TAG, "Game detected by publisher: " + publisher);
+                    return true;
+                }
+            }
+
             return false;
         } catch (Exception e) {
             Log.d(TAG, "isLikelyGame error: " + e.getMessage());

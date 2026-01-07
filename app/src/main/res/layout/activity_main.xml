@@ -15,14 +15,31 @@
         android:background="#16213e"
         android:layout_marginBottom="16dp">
 
-        <TextView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="🎮 Game Launcher"
-            android:textSize="28sp"
-            android:textColor="#00ff00"
-            android:textStyle="bold"
-            android:gravity="center" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="🎮 Game Launcher"
+                android:textSize="28sp"
+                android:textColor="#00ff00"
+                android:textStyle="bold"
+                android:gravity="center" />
+
+            <Button
+                android:id="@+id/settingsButton"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:text="⚙️"
+                android:textSize="24sp"
+                android:background="#0f3460"
+                android:textColor="#00ff00" />
+        </LinearLayout>
 
         <TextView
             android:layout_width="match_parent"
