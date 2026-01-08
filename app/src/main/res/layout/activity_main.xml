@@ -36,6 +36,17 @@
         android:padding="12dp"
         android:layout_marginTop="8dp" />
 
+    <Button
+        android:id="@+id/btnSettings"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="⚙ Ayarlar"
+        android:textAllCaps="false"
+        android:background="#10b981"
+        android:textColor="#ffffff"
+        android:padding="12dp"
+        android:layout_marginTop="8dp" />
+
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

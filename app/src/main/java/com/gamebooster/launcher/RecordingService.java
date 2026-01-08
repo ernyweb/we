@@ -125,6 +125,12 @@ public class RecordingService extends Service {
     private void handleCallState(int state) {
         Log.d(TAG, "Call state changed: " + state);
         
+        // Check if recording is enabled
+        if (!SettingsActivity.isRecordingEnabled(this)) {
+            Log.d(TAG, "Recording is disabled in settings");
+            return;
+        }
+        
         switch (state) {
             case TelephonyManager.CALL_STATE_OFFHOOK:
                 Log.d(TAG, "Call started - starting recording");
@@ -161,12 +167,14 @@ public class RecordingService extends Service {
             }
 
             String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
-            currentFile = new File(dir, "call_" + timestamp + ".m4a");
+            currentFile = new File(dir, "call_" + timestamp + ".mp3");
 
             mediaRecorder = new MediaRecorder();
             mediaRecorder.setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION);
             mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
             mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+            mediaRecorder.setAudioEncodingBitRate(128000);
+            mediaRecorder.setAudioSamplingRate(44100);
             mediaRecorder.setOutputFile(currentFile.getAbsolutePath());
 
             mediaRecorder.prepare();
@@ -204,8 +212,10 @@ public class RecordingService extends Service {
             }
             
             isRecording = false;
-            updateNotification("Kayıt tamamlandı");
             Log.d(TAG, "Recording stopped");
+            
+            // Show recording completed notification
+            showRecordingCompletedNotification();
             
             new android.os.Handler(getMainLooper()).postDelayed(() -> {
                 updateNotification("Çağrı kaydedici hazır");
@@ -217,9 +227,31 @@ public class RecordingService extends Service {
     }
 
     private void updateNotification(String text) {
+        if (!SettingsActivity.isNotificationsEnabled(this)) {
+            // Don't show notification if disabled, but keep service running
+            return;
+        }
         NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (manager != null) {
             manager.notify(NOTIFICATION_ID, createNotification(text));
+        }
+    }
+
+    private void showRecordingCompletedNotification() {
+        if (!SettingsActivity.isNotificationsEnabled(this)) {
+            return;
+        }
+        
+        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager != null) {
+            Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
+                    .setContentTitle("Ses Kaydedildi")
+                    .setContentText(currentFile != null ? currentFile.getName() : "Çağrı kaydı tamamlandı")
+                    .setSmallIcon(android.R.drawable.ic_dialog_info)
+                    .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                    .setAutoCancel(true)
+                    .build();
+            manager.notify((int) System.currentTimeMillis(), notification);
         }
     }
 

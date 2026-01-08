@@ -3,6 +3,7 @@ package com.gamebooster.launcher;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.Bundle;
 import android.widget.Button;
@@ -25,8 +26,10 @@ public class MainActivity extends AppCompatActivity {
 
     private TextView statusText;
     private Button btnPermissions;
+    private Button btnSettings;
     private RecyclerView recordingsList;
     private RecordingAdapter adapter;
+    private MediaPlayer mediaPlayer;
 
     private final ActivityResultLauncher<String[]> permissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), result -> {
@@ -55,12 +58,18 @@ public class MainActivity extends AppCompatActivity {
 
         statusText = findViewById(R.id.statusText);
         btnPermissions = findViewById(R.id.btnRequest);
+        btnSettings = findViewById(R.id.btnSettings);
         recordingsList = findViewById(R.id.recordingsList);
 
         // Setup RecyclerView
         adapter = new RecordingAdapter(new ArrayList<>(), item -> playRecording(item.path()));
         recordingsList.setLayoutManager(new LinearLayoutManager(this));
         recordingsList.setAdapter(adapter);
+
+        // Settings button
+        btnSettings.setOnClickListener(v -> {
+            startActivity(new Intent(this, SettingsActivity.class));
+        });
 
         btnPermissions.setOnClickListener(v -> {
             if (hasAllPermissions()) {
@@ -149,7 +158,7 @@ public class MainActivity extends AppCompatActivity {
             Arrays.sort(files, (f1, f2) -> Long.compare(f2.lastModified(), f1.lastModified()));
             
             for (File file : files) {
-                if (file.isFile() && file.getName().endsWith(".m4a")) {
+                if (file.isFile() && (file.getName().endsWith(".mp3") || file.getName().endsWith(".m4a"))) {
                     String size = formatSize(file.length());
                     String name = file.getName();
                     items.add(new RecordingItem(name, file.getAbsolutePath(), size));
@@ -170,6 +179,46 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void playRecording(String path) {
-        Toast.makeText(this, "Oynatma: " + new File(path).getName(), Toast.LENGTH_SHORT).show();
+        try {
+            // Stop any current playback
+            if (mediaPlayer != null) {
+                if (mediaPlayer.isPlaying()) {
+                    mediaPlayer.stop();
+                }
+                mediaPlayer.release();
+                mediaPlayer = null;
+            }
+
+            // Start new playback
+            mediaPlayer = new MediaPlayer();
+            mediaPlayer.setDataSource(path);
+            mediaPlayer.setOnPreparedListener(mp -> {
+                mp.start();
+                Toast.makeText(MainActivity.this, "Oynatılıyor: " + new File(path).getName(), Toast.LENGTH_SHORT).show();
+            });
+            mediaPlayer.setOnCompletionListener(mp -> {
+                Toast.makeText(MainActivity.this, "Oynatma tamamlandı", Toast.LENGTH_SHORT).show();
+            });
+            mediaPlayer.setOnErrorListener((mp, what, extra) -> {
+                Toast.makeText(MainActivity.this, "Oynatma hatası", Toast.LENGTH_SHORT).show();
+                return true;
+            });
+            mediaPlayer.prepareAsync();
+        } catch (Exception e) {
+            Toast.makeText(this, "Oynatma hatası: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (mediaPlayer != null) {
+            if (mediaPlayer.isPlaying()) {
+                mediaPlayer.stop();
+            }
+            mediaPlayer.release();
+            mediaPlayer = null;
+        }
+        super.onDestroy();
     }
 }
