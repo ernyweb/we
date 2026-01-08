@@ -10,52 +10,58 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.List;
 
-class RecordingAdapter extends RecyclerView.Adapter<RecordingAdapter.VH> {
+public class RecordingAdapter extends RecyclerView.Adapter<RecordingAdapter.ViewHolder> {
 
-    interface OnItemClickListener {
-        void onItemClick(@NonNull RecordingItem item);
-    }
-
-    private List<RecordingItem> data;
+    private List<RecordingItem> items;
     private final OnItemClickListener listener;
 
-    RecordingAdapter(List<RecordingItem> data, OnItemClickListener listener) {
-        this.data = data;
+    public interface OnItemClickListener {
+        void onItemClick(RecordingItem item);
+    }
+
+    public RecordingAdapter(List<RecordingItem> items, OnItemClickListener listener) {
+        this.items = items;
         this.listener = listener;
     }
 
-    void update(List<RecordingItem> newData) {
-        this.data = newData;
+    public void update(List<RecordingItem> newItems) {
+        this.items = newItems;
         notifyDataSetChanged();
     }
 
     @NonNull
     @Override
-    public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_game, parent, false);
-        return new VH(view);
+    public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        View view = LayoutInflater.from(parent.getContext())
+                .inflate(R.layout.item_recording, parent, false);
+        return new ViewHolder(view);
     }
 
     @Override
-    public void onBindViewHolder(@NonNull VH holder, int position) {
-        RecordingItem item = data.get(position);
+    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+        RecordingItem item = items.get(position);
         holder.title.setText(item.title());
         holder.meta.setText(item.meta());
-        holder.itemView.setOnClickListener(v -> listener.onItemClick(item));
+        holder.itemView.setOnClickListener(v -> {
+            if (listener != null) {
+                listener.onItemClick(item);
+            }
+        });
     }
 
     @Override
     public int getItemCount() {
-        return data == null ? 0 : data.size();
+        return items.size();
     }
 
-    static class VH extends RecyclerView.ViewHolder {
-        final TextView title;
-        final TextView meta;
-        VH(@NonNull View itemView) {
+    static class ViewHolder extends RecyclerView.ViewHolder {
+        TextView title;
+        TextView meta;
+
+        ViewHolder(View itemView) {
             super(itemView);
-            title = itemView.findViewById(R.id.txtTitle);
-            meta = itemView.findViewById(R.id.txtMeta);
+            title = itemView.findViewById(R.id.recordingTitle);
+            meta = itemView.findViewById(R.id.recordingMeta);
         }
     }
 }

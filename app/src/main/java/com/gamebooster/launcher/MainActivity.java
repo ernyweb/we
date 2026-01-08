@@ -3,245 +3,173 @@ package com.gamebooster.launcher;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.media.MediaMetadataRetriever;
-import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.Bundle;
-import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.io.File;
-import java.text.DecimalFormat;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 
-public class MainActivity extends AppCompatActivity implements RecordingAdapter.OnItemClickListener {
+public class MainActivity extends AppCompatActivity {
 
     private TextView statusText;
-    private TextView emptyView;
-    private RecyclerView recyclerView;
-    private Button btnRequest;
+    private Button btnPermissions;
+    private RecyclerView recordingsList;
     private RecordingAdapter adapter;
-    private MediaPlayer mediaPlayer;
 
     private final ActivityResultLauncher<String[]> permissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), result -> {
-                if (allPermissionsGranted()) {
-                    startRecorderService();
+                boolean allGranted = true;
+                for (Boolean granted : result.values()) {
+                    if (!granted) {
+                        allGranted = false;
+                        break;
+                    }
+                }
+                
+                if (allGranted) {
+                    statusText.setText("İzinler verildi. Servis başlatılıyor...");
+                    startService();
                     loadRecordings();
                 } else {
-                    statusText.setText(getString(R.string.perm_rationale));
+                    statusText.setText("İzinler reddedildi. Uygulama çalışmaz.");
+                    Toast.makeText(this, "Tüm izinler gerekli!", Toast.LENGTH_LONG).show();
                 }
             });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        try {
-            setContentView(R.layout.activity_main);
+        setContentView(R.layout.activity_main);
 
-            statusText = findViewById(R.id.statusText);
-            emptyView = findViewById(R.id.emptyView);
-            recyclerView = findViewById(R.id.recordingsList);
-            btnRequest = findViewById(R.id.btnRequest);
+        statusText = findViewById(R.id.statusText);
+        btnPermissions = findViewById(R.id.btnRequest);
+        recordingsList = findViewById(R.id.recordingsList);
 
-            if (recyclerView == null || statusText == null || btnRequest == null) {
-                throw new RuntimeException("Layout views not found");
+        // Setup RecyclerView
+        adapter = new RecordingAdapter(new ArrayList<>(), item -> playRecording(item.path()));
+        recordingsList.setLayoutManager(new LinearLayoutManager(this));
+        recordingsList.setAdapter(adapter);
+
+        btnPermissions.setOnClickListener(v -> {
+            if (hasAllPermissions()) {
+                statusText.setText("İzinler zaten verilmiş. Servis çalışıyor.");
+                startService();
+                loadRecordings();
+            } else {
+                requestPermissions();
             }
+        });
 
-            recyclerView.setLayoutManager(new LinearLayoutManager(this));
-            adapter = new RecordingAdapter(new ArrayList<>(), this);
-            recyclerView.setAdapter(adapter);
-
-            btnRequest.setOnClickListener(v -> {
-                if (allPermissionsGranted()) {
-                    startRecorderService();
-                    loadRecordings();
-                } else {
-                    requestPerms();
-                }
-            });
-        } catch (Exception e) {
-            android.util.Log.e("MainActivity", "onCreate crashed: " + e.getMessage(), e);
-            if (statusText != null) {
-                statusText.setText("Hata: " + e.getMessage());
-            }
-            // Don't start service if initialization failed
-            return;
+        // Check permissions on start
+        if (hasAllPermissions()) {
+            statusText.setText("Çağrı kaydedici hazır");
+            startService();
+            loadRecordings();
+        } else {
+            statusText.setText("İzin vermek için butona tıklayın");
         }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        try {
-            // Check if views are initialized
-            if (statusText == null || recyclerView == null || btnRequest == null) {
-                android.util.Log.e("MainActivity", "Views not initialized in onResume");
-                return;
-            }
-            
-            if (allPermissionsGranted()) {
-                startRecorderService();
-                loadRecordings();
-            } else {
-                statusText.setText(getString(R.string.perm_rationale));
-            }
-        } catch (Exception e) {
-            android.util.Log.e("MainActivity", "onResume crashed: " + e.getMessage(), e);
-            if (statusText != null) statusText.setText("Hata: " + e.getMessage());
+        if (hasAllPermissions()) {
+            loadRecordings();
         }
     }
 
-    private void requestPerms() {
-        List<String> perms = new ArrayList<>();
-        perms.add(Manifest.permission.RECORD_AUDIO);
-        perms.add(Manifest.permission.READ_PHONE_STATE);
-        perms.add(Manifest.permission.READ_CALL_LOG);
+    private boolean hasAllPermissions() {
+        String[] permissions = getRequiredPermissions();
+        for (String permission : permissions) {
+            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private String[] getRequiredPermissions() {
+        List<String> permissions = new ArrayList<>();
+        permissions.add(Manifest.permission.RECORD_AUDIO);
+        permissions.add(Manifest.permission.READ_PHONE_STATE);
+        permissions.add(Manifest.permission.READ_CALL_LOG);
+        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            perms.add(Manifest.permission.POST_NOTIFICATIONS);
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS);
         }
-        permissionLauncher.launch(perms.toArray(new String[0]));
+        
+        return permissions.toArray(new String[0]);
     }
 
-    private boolean allPermissionsGranted() {
-        boolean audio = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
-        boolean phone = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED;
-        boolean callLog = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED;
-        boolean notif = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-                ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
-        return audio && phone && callLog && notif;
+    private void requestPermissions() {
+        permissionLauncher.launch(getRequiredPermissions());
     }
 
-    private void startRecorderService() {
+    private void startService() {
         try {
-            if (statusText != null) {
-                statusText.setText(R.string.notification_idle);
-            }
             Intent intent = new Intent(this, RecordingService.class);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                try {
-                    ContextCompat.startForegroundService(this, intent);
-                } catch (Exception e) {
-                    android.util.Log.e("MainActivity", "Failed to start foreground service: " + e.getMessage(), e);
-                    // Try regular startService as fallback
-                    startService(intent);
-                }
+                startForegroundService(intent);
             } else {
                 startService(intent);
             }
         } catch (Exception e) {
-            android.util.Log.e("MainActivity", "startRecorderService crashed: " + e.getMessage(), e);
-            if (statusText != null) {
-                statusText.setText("Servis hatası: " + e.getMessage());
-            }
+            statusText.setText("Servis başlatılamadı: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
     private void loadRecordings() {
         try {
             File dir = new File(getExternalFilesDir(null), "recordings");
-            if (!dir.exists() || !dir.isDirectory()) {
-                emptyView.setVisibility(View.VISIBLE);
+            if (!dir.exists()) {
                 adapter.update(new ArrayList<>());
                 return;
             }
+
             File[] files = dir.listFiles();
+            if (files == null || files.length == 0) {
+                adapter.update(new ArrayList<>());
+                return;
+            }
+
             List<RecordingItem> items = new ArrayList<>();
-            if (files != null) {
-                for (File f : files) {
-                    if (!f.isFile()) continue;
-                    long durationMs = readDuration(f);
-                    String title = f.getName();
-                    String meta = formatDuration(durationMs) + " • " + formatSize(f.length());
-                    items.add(new RecordingItem(title, f.getAbsolutePath(), meta));
+            Arrays.sort(files, (f1, f2) -> Long.compare(f2.lastModified(), f1.lastModified()));
+            
+            for (File file : files) {
+                if (file.isFile() && file.getName().endsWith(".m4a")) {
+                    String size = formatSize(file.length());
+                    String name = file.getName();
+                    items.add(new RecordingItem(name, file.getAbsolutePath(), size));
                 }
             }
-            emptyView.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
+
             adapter.update(items);
+            statusText.setText(items.size() + " kayıt bulundu");
         } catch (Exception e) {
-            android.util.Log.e("MainActivity", "loadRecordings crashed: " + e.getMessage(), e);
-            statusText.setText("Kayıt yükleme hatası: " + e.getMessage());
+            e.printStackTrace();
         }
-    }
-
-    private long readDuration(File f) {
-        MediaMetadataRetriever mmr = new MediaMetadataRetriever();
-        try {
-            mmr.setDataSource(f.getAbsolutePath());
-            String dur = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
-            if (dur != null) return Long.parseLong(dur);
-        } catch (Exception ignored) {
-        } finally {
-            try {
-                mmr.release();
-            } catch (Exception ignored) {
-            }
-        }
-        return 0L;
-    }
-
-    private String formatDuration(long ms) {
-        long totalSec = ms / 1000;
-        long min = totalSec / 60;
-        long sec = totalSec % 60;
-        return String.format(Locale.getDefault(), "%02d:%02d", min, sec);
     }
 
     private String formatSize(long bytes) {
-        if (bytes <= 0) return "0 B";
-        String[] units = {"B", "KB", "MB", "GB"};
-        double size = bytes;
-        int idx = 0;
-        while (size > 1024 && idx < units.length - 1) {
-            size /= 1024.0;
-            idx++;
-        }
-        return new DecimalFormat("#.##").format(size) + " " + units[idx];
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return (bytes / 1024) + " KB";
+        return String.format("%.1f MB", bytes / (1024.0 * 1024.0));
     }
 
-    @Override
-    public void onItemClick(@NonNull RecordingItem item) {
-        play(item.path());
-    }
-
-    private void play(String path) {
-        stopPlayer();
-        try {
-            mediaPlayer = new MediaPlayer();
-            mediaPlayer.setDataSource(path);
-            mediaPlayer.setOnPreparedListener(MediaPlayer::start);
-            mediaPlayer.prepareAsync();
-            statusText.setText("Oynatılıyor: " + new File(path).getName());
-        } catch (Exception e) {
-            statusText.setText("Oynatma hatası");
-            stopPlayer();
-        }
-    }
-
-    private void stopPlayer() {
-        if (mediaPlayer != null) {
-            mediaPlayer.stop();
-            mediaPlayer.release();
-            mediaPlayer = null;
-        }
-    }
-
-    @Override
-    protected void onDestroy() {
-        stopPlayer();
-        super.onDestroy();
+    private void playRecording(String path) {
+        Toast.makeText(this, "Oynatma: " + new File(path).getName(), Toast.LENGTH_SHORT).show();
     }
 }
