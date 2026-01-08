@@ -27,6 +27,12 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:label="Ayarlar" />
+
         <service
             android:name=".RecordingService"
             android:enabled="true"
