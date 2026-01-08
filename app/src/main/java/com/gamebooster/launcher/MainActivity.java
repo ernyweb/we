@@ -6,7 +6,12 @@ import android.content.pm.PackageManager;
 import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.View;
 import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -30,6 +35,15 @@ public class MainActivity extends AppCompatActivity {
     private RecyclerView recordingsList;
     private RecordingAdapter adapter;
     private MediaPlayer mediaPlayer;
+    
+    // Playback controls
+    private LinearLayout playbackControls;
+    private TextView playbackFileName;
+    private Button btnStopPlayback;
+    private SeekBar seekBar;
+    private TextView currentTime;
+    private TextView totalTime;
+    private Handler seekBarHandler = new Handler(Looper.getMainLooper());
 
     private final ActivityResultLauncher<String[]> permissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), result -> {
@@ -60,11 +74,36 @@ public class MainActivity extends AppCompatActivity {
         btnPermissions = findViewById(R.id.btnRequest);
         btnSettings = findViewById(R.id.btnSettings);
         recordingsList = findViewById(R.id.recordingsList);
+        
+        // Playback controls
+        playbackControls = findViewById(R.id.playbackControls);
+        playbackFileName = findViewById(R.id.playbackFileName);
+        btnStopPlayback = findViewById(R.id.btnStopPlayback);
+        seekBar = findViewById(R.id.seekBar);
+        currentTime = findViewById(R.id.currentTime);
+        totalTime = findViewById(R.id.totalTime);
 
         // Setup RecyclerView
         adapter = new RecordingAdapter(new ArrayList<>(), item -> playRecording(item.path()));
         recordingsList.setLayoutManager(new LinearLayoutManager(this));
         recordingsList.setAdapter(adapter);
+        
+        // Stop playback button
+        btnStopPlayback.setOnClickListener(v -> stopPlayback());
+        
+        // SeekBar listener
+        seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser && mediaPlayer != null && mediaPlayer.isPlaying()) {
+                    mediaPlayer.seekTo(progress);
+                }
+            }
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
 
         // Settings button
         btnSettings.setOnClickListener(v -> {
@@ -181,44 +220,110 @@ public class MainActivity extends AppCompatActivity {
     private void playRecording(String path) {
         try {
             // Stop any current playback
-            if (mediaPlayer != null) {
+            stopPlayback();
+
+            File file = new File(path);
+            if (!file.exists()) {
+                Toast.makeText(this, "Dosya bulunamadı", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // Create and prepare media player
+            mediaPlayer = new MediaPlayer();
+            mediaPlayer.setDataSource(path);
+            
+            mediaPlayer.setOnPreparedListener(mp -> {
+                // Show playback controls
+                playbackControls.setVisibility(View.VISIBLE);
+                playbackFileName.setText("🎧 " + file.getName());
+                
+                // Set up seekbar
+                int duration = mp.getDuration();
+                seekBar.setMax(duration);
+                totalTime.setText(formatTime(duration));
+                
+                // Start playback
+                mp.start();
+                Toast.makeText(MainActivity.this, "Oynatılıyor", Toast.LENGTH_SHORT).show();
+                
+                // Update seekbar
+                updateSeekBar();
+            });
+            
+            mediaPlayer.setOnCompletionListener(mp -> {
+                Toast.makeText(MainActivity.this, "Oynatma tamamlandı", Toast.LENGTH_SHORT).show();
+                stopPlayback();
+            });
+            
+            mediaPlayer.setOnErrorListener((mp, what, extra) -> {
+                Toast.makeText(MainActivity.this, "Oynatma hatası: " + what, Toast.LENGTH_LONG).show();
+                stopPlayback();
+                return true;
+            });
+            
+            mediaPlayer.prepareAsync();
+            
+        } catch (Exception e) {
+            Toast.makeText(this, "Hata: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            e.printStackTrace();
+            stopPlayback();
+        }
+    }
+    
+    private void stopPlayback() {
+        // Stop seekbar updates
+        seekBarHandler.removeCallbacksAndMessages(null);
+        
+        // Stop and release media player
+        if (mediaPlayer != null) {
+            try {
                 if (mediaPlayer.isPlaying()) {
                     mediaPlayer.stop();
                 }
                 mediaPlayer.release();
-                mediaPlayer = null;
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-
-            // Start new playback
-            mediaPlayer = new MediaPlayer();
-            mediaPlayer.setDataSource(path);
-            mediaPlayer.setOnPreparedListener(mp -> {
-                mp.start();
-                Toast.makeText(MainActivity.this, "Oynatılıyor: " + new File(path).getName(), Toast.LENGTH_SHORT).show();
-            });
-            mediaPlayer.setOnCompletionListener(mp -> {
-                Toast.makeText(MainActivity.this, "Oynatma tamamlandı", Toast.LENGTH_SHORT).show();
-            });
-            mediaPlayer.setOnErrorListener((mp, what, extra) -> {
-                Toast.makeText(MainActivity.this, "Oynatma hatası", Toast.LENGTH_SHORT).show();
-                return true;
-            });
-            mediaPlayer.prepareAsync();
-        } catch (Exception e) {
-            Toast.makeText(this, "Oynatma hatası: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-            e.printStackTrace();
+            mediaPlayer = null;
         }
+        
+        // Hide playback controls
+        if (playbackControls != null) {
+            playbackControls.setVisibility(View.GONE);
+        }
+    }
+    
+    private void updateSeekBar() {
+        if (mediaPlayer != null && mediaPlayer.isPlaying()) {
+            try {
+                int currentPosition = mediaPlayer.getCurrentPosition();
+                seekBar.setProgress(currentPosition);
+                currentTime.setText(formatTime(currentPosition));
+                
+                // Update every 100ms
+                seekBarHandler.postDelayed(this::updateSeekBar, 100);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+    
+    private String formatTime(int milliseconds) {
+        int seconds = (milliseconds / 1000) % 60;
+        int minutes = (milliseconds / (1000 * 60)) % 60;
+        return String.format("%02d:%02d", minutes, seconds);
     }
 
     @Override
     protected void onDestroy() {
-        if (mediaPlayer != null) {
-            if (mediaPlayer.isPlaying()) {
-                mediaPlayer.stop();
-            }
-            mediaPlayer.release();
-            mediaPlayer = null;
-        }
+        stopPlayback();
         super.onDestroy();
+    }
+    
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Optionally stop playback when app goes to background
+        // stopPlayback();
     }
 }
