@@ -167,7 +167,9 @@ public class RecordingService extends Service {
             }
 
             String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
-            currentFile = new File(dir, "call_" + timestamp + ".mp3");
+            String format = SettingsActivity.getAudioFormat(this);
+            String extension = format.equals("MP4") ? ".mp4" : ".3gp";
+            currentFile = new File(dir, "call_" + timestamp + extension);
 
             // Try ALL possible audio sources aggressively
             int[] audioSources = {
@@ -201,12 +203,37 @@ public class RecordingService extends Service {
                     mediaRecorder = new MediaRecorder();
                     mediaRecorder.setAudioSource(audioSources[i]);
                     
-                    // Use 3GP format - more compatible for calls
-                    mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
-                    mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
+                    // Get settings
+                    int bitrate = SettingsActivity.getBitrate(this);
+                    int sampleRate = SettingsActivity.getSampleRate(this);
+                    int channels = SettingsActivity.getChannels(this);
+                    
+                    // Configure format and encoder based on settings
+                    if (format.equals("MP4")) {
+                        mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+                        mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+                    } else {
+                        mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
+                        mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
+                    }
+                    
+                    // Audio settings from preferences
+                    mediaRecorder.setAudioEncodingBitRate(bitrate);
+                    mediaRecorder.setAudioSamplingRate(sampleRate);
+                    mediaRecorder.setAudioChannels(channels);
                     
                     // Output file
                     mediaRecorder.setOutputFile(currentFile.getAbsolutePath());
+                    
+                    // Max file size (100 MB)
+                    mediaRecorder.setMaxFileSize(100 * 1024 * 1024);
+                    
+                    mediaRecorder.setOnInfoListener((mr, what, extra) -> {
+                        if (what == MediaRecorder.MEDIA_RECORDER_INFO_MAX_FILESIZE_REACHED) {
+                            Log.w(TAG, "Max file size reached");
+                            stopRecording();
+                        }
+                    });
                     
                     // Prepare and start
                     mediaRecorder.prepare();
