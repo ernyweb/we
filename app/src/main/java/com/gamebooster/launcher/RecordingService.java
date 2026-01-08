@@ -4,78 +4,247 @@ import android.Manifest;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.media.MediaRecorder;
 import android.os.Build;
-import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
 import android.telephony.PhoneStateListener;
 import android.telephony.TelephonyCallback;
 import android.telephony.TelephonyManager;
+import android.util.Log;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.annotation.RequiresApi;
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 
 import java.io.File;
-import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 
 public class RecordingService extends Service {
 
-    private static final String CHANNEL_ID = "call_recorder_channel";
-    private static final int NOTIF_ID = 44;
+    private static final String TAG = "RecordingService";
+    private static final String CHANNEL_ID = "call_recorder";
+    private static final int NOTIFICATION_ID = 1001;
 
     private TelephonyManager telephonyManager;
-    private MediaRecorder recorder;
-    private boolean recording = false;
+    private MediaRecorder mediaRecorder;
+    private boolean isRecording = false;
     private File currentFile;
-    private long startMs = 0L;
-    private final Handler handler = new Handler(Looper.getMainLooper());
-    private Object callStateCallback; // TelephonyCallback for Android 12+
-
-    private final Runnable tick = new Runnable() {
-        @Override
-        public void run() {
-            if (recording) {
-                updateNotification(true);
-                handler.postDelayed(this, 5_000);
-            }
-        }
-    };
+    private Object callbackObject;
 
     @Override
     public void onCreate() {
         super.onCreate();
+        Log.d(TAG, "Service onCreate");
+        
+        createNotificationChannel();
+        startForeground(NOTIFICATION_ID, createNotification("Çağrı kaydedici hazır"));
+        
+        setupPhoneStateListener();
+    }
+
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                CHANNEL_ID,
+                "Çağrı Kaydedici",
+                NotificationManager.IMPORTANCE_LOW
+            );
+            channel.setDescription("Çağrı kayıt servisi");
+            
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) {
+                manager.createNotificationChannel(channel);
+            }
+        }
+    }
+
+    private Notification createNotification(String text) {
+        Intent notificationIntent = new Intent(this, MainActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(
+            this, 0, notificationIntent,
+            PendingIntent.FLAG_IMMUTABLE
+        );
+
+        return new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("Çağrı Kaydedici")
+                .setContentText(text)
+                .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+                .setContentIntent(pendingIntent)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setOngoing(true)
+                .build();
+    }
+
+    private void setupPhoneStateListener() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) 
+                != PackageManager.PERMISSION_GRANTED) {
+            Log.e(TAG, "No READ_PHONE_STATE permission");
+            return;
+        }
+
+        telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
+        if (telephonyManager == null) {
+            Log.e(TAG, "TelephonyManager is null");
+            return;
+        }
+
         try {
-            createChannel();
-            telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
-            startForeground(NOTIF_ID, buildNotification(getString(R.string.notification_idle)));
-            // Delay listener registration slightly to ensure service is fully started
-            handler.postDelayed(() -> registerListener(), 500);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                TelephonyCallback.CallStateListener callback = new TelephonyCallback.CallStateListener() {
+                    @Override
+                    public void onCallStateChanged(int state) {
+                        handleCallState(state);
+                    }
+                };
+                callbackObject = callback;
+                telephonyManager.registerTelephonyCallback(getMainExecutor(), (TelephonyCallback) callbackObject);
+                Log.d(TAG, "TelephonyCallback registered (Android 12+)");
+            } else {
+                PhoneStateListener listener = new PhoneStateListener() {
+                    @Override
+                    public void onCallStateChanged(int state, String phoneNumber) {
+                        handleCallState(state);
+                    }
+                };
+                callbackObject = listener;
+                telephonyManager.listen((PhoneStateListener) callbackObject, PhoneStateListener.LISTEN_CALL_STATE);
+                Log.d(TAG, "PhoneStateListener registered (Android 11-)");
+            }
         } catch (Exception e) {
-            android.util.Log.e("RecordingService", "onCreate failed: " + e.getMessage(), e);
-            stopSelf();
+            Log.e(TAG, "Failed to register phone state listener", e);
+        }
+    }
+
+    private void handleCallState(int state) {
+        Log.d(TAG, "Call state changed: " + state);
+        
+        switch (state) {
+            case TelephonyManager.CALL_STATE_OFFHOOK:
+                Log.d(TAG, "Call started - starting recording");
+                startRecording();
+                break;
+                
+            case TelephonyManager.CALL_STATE_IDLE:
+                Log.d(TAG, "Call ended - stopping recording");
+                stopRecording();
+                break;
+                
+            case TelephonyManager.CALL_STATE_RINGING:
+                Log.d(TAG, "Phone ringing");
+                break;
+        }
+    }
+
+    private void startRecording() {
+        if (isRecording) {
+            Log.w(TAG, "Already recording");
+            return;
+        }
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) 
+                != PackageManager.PERMISSION_GRANTED) {
+            Log.e(TAG, "No RECORD_AUDIO permission");
+            return;
+        }
+
+        try {
+            File dir = new File(getExternalFilesDir(null), "recordings");
+            if (!dir.exists()) {
+                dir.mkdirs();
+            }
+
+            String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+            currentFile = new File(dir, "call_" + timestamp + ".m4a");
+
+            mediaRecorder = new MediaRecorder();
+            mediaRecorder.setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION);
+            mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+            mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+            mediaRecorder.setOutputFile(currentFile.getAbsolutePath());
+
+            mediaRecorder.prepare();
+            mediaRecorder.start();
+            
+            isRecording = true;
+            updateNotification("Kayıt ediliyor...");
+            Log.d(TAG, "Recording started: " + currentFile.getName());
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start recording", e);
+            isRecording = false;
+            if (mediaRecorder != null) {
+                try {
+                    mediaRecorder.release();
+                } catch (Exception ignored) {}
+                mediaRecorder = null;
+            }
+            if (currentFile != null && currentFile.exists()) {
+                currentFile.delete();
+            }
+        }
+    }
+
+    private void stopRecording() {
+        if (!isRecording) {
+            return;
+        }
+
+        try {
+            if (mediaRecorder != null) {
+                mediaRecorder.stop();
+                mediaRecorder.release();
+                mediaRecorder = null;
+            }
+            
+            isRecording = false;
+            updateNotification("Kayıt tamamlandı");
+            Log.d(TAG, "Recording stopped");
+            
+            new android.os.Handler(getMainLooper()).postDelayed(() -> {
+                updateNotification("Çağrı kaydedici hazır");
+            }, 3000);
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to stop recording", e);
+        }
+    }
+
+    private void updateNotification(String text) {
+        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager != null) {
+            manager.notify(NOTIFICATION_ID, createNotification(text));
         }
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        // Keep running until explicitly stopped
         return START_STICKY;
     }
 
     @Override
     public void onDestroy() {
+        Log.d(TAG, "Service onDestroy");
         stopRecording();
-        unregisterListener();
-        handler.removeCallbacksAndMessages(null);
+        
+        if (telephonyManager != null && callbackObject != null) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    telephonyManager.unregisterTelephonyCallback((TelephonyCallback) callbackObject);
+                } else {
+                    telephonyManager.listen((PhoneStateListener) callbackObject, PhoneStateListener.LISTEN_NONE);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to unregister listener", e);
+            }
+        }
+        
         super.onDestroy();
     }
 
@@ -83,191 +252,5 @@ public class RecordingService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         return null;
-    }
-
-    private void registerListener() {
-        if (telephonyManager == null) return;
-        try {
-            // Check if we have required permissions
-            if (checkSelfPermission(Manifest.permission.READ_PHONE_STATE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                android.util.Log.w("RecordingService", "READ_PHONE_STATE permission not granted");
-                return;
-            }
-            
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                // Android 12+ use TelephonyCallback
-                registerCallbackApi31();
-            } else {
-                // Android 11 and below use PhoneStateListener
-                telephonyManager.listen(phoneStateListener, PhoneStateListener.LISTEN_CALL_STATE);
-            }
-        } catch (SecurityException e) {
-            android.util.Log.e("RecordingService", "Failed to register listener: " + e.getMessage());
-        } catch (Exception e) {
-            android.util.Log.e("RecordingService", "Unexpected error in registerListener: " + e.getMessage(), e);
-        }
-    }
-
-    private void unregisterListener() {
-        if (telephonyManager == null) return;
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                // Android 12+ unregister TelephonyCallback
-                unregisterCallbackApi31();
-            } else {
-                // Android 11 and below unregister PhoneStateListener
-                telephonyManager.listen(phoneStateListener, PhoneStateListener.LISTEN_NONE);
-            }
-        } catch (Exception ignored) {
-        }
-    }
-
-    private final PhoneStateListener phoneStateListener = new PhoneStateListener() {
-        @Override
-        public void onCallStateChanged(int state, String phoneNumber) {
-            handleCallStateChange(state);
-        }
-    };
-
-    @RequiresApi(api = Build.VERSION_CODES.S)
-    private void registerCallbackApi31() {
-        TelephonyCallback.CallStateListener callback = new TelephonyCallback.CallStateListener() {
-            @Override
-            public void onCallStateChanged(int state) {
-                handleCallStateChange(state);
-            }
-        };
-        callStateCallback = callback;
-        telephonyManager.registerTelephonyCallback(getMainExecutor(), (TelephonyCallback) callStateCallback);
-    }
-
-    @RequiresApi(api = Build.VERSION_CODES.S)
-    private void unregisterCallbackApi31() {
-        if (callStateCallback != null) {
-            telephonyManager.unregisterTelephonyCallback((TelephonyCallback) callStateCallback);
-            callStateCallback = null;
-        }
-    }
-
-    private void handleCallStateChange(int state) {
-        switch (state) {
-            case TelephonyManager.CALL_STATE_OFFHOOK:
-                startRecording();
-                break;
-            case TelephonyManager.CALL_STATE_IDLE:
-                stopRecording();
-                break;
-            case TelephonyManager.CALL_STATE_RINGING:
-            default:
-                break;
-        }
-    }
-
-    private void startRecording() {
-        stopRecording(); // ensure clean state
-        File dir = new File(getExternalFilesDir(null), "recordings");
-        if (!dir.exists()) {
-            dir.mkdirs();
-        }
-        String fileName = "call_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date()) + ".m4a";
-        currentFile = new File(dir, fileName);
-
-        recorder = new MediaRecorder();
-        try {
-            // Prefer VOICE_COMMUNICATION; fall back to MIC if unavailable
-            recorder.setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION);
-        } catch (Exception e) {
-            recorder.reset();
-            recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
-        }
-        recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
-        recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
-        recorder.setAudioEncodingBitRate(128_000);
-        recorder.setAudioSamplingRate(44_100);
-        recorder.setOutputFile(currentFile.getAbsolutePath());
-
-        try {
-            recorder.prepare();
-            recorder.start();
-            recording = true;
-            startMs = System.currentTimeMillis();
-            updateNotification(true);
-            handler.removeCallbacksAndMessages(null);
-            handler.postDelayed(tick, 5_000);
-        } catch (IOException | RuntimeException e) {
-            recording = false;
-            updateNotification(false);
-            cleanupFile();
-            safeRelease();
-        }
-    }
-
-    private void stopRecording() {
-        if (!recording) return;
-        try {
-            recorder.stop();
-        } catch (RuntimeException ignored) {
-        }
-        recording = false;
-        safeRelease();
-        updateNotification(false);
-        handler.removeCallbacksAndMessages(null);
-    }
-
-    private void safeRelease() {
-        if (recorder != null) {
-            try {
-                recorder.reset();
-                recorder.release();
-            } catch (Exception ignored) {
-            }
-            recorder = null;
-        }
-    }
-
-    private void cleanupFile() {
-        if (currentFile != null && currentFile.exists()) {
-            //noinspection ResultOfMethodCallIgnored
-            currentFile.delete();
-        }
-    }
-
-    private void createChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID,
-                    getString(R.string.notification_channel_name),
-                    NotificationManager.IMPORTANCE_LOW
-            );
-            channel.setDescription(getString(R.string.notification_channel_desc));
-            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-            nm.createNotificationChannel(channel);
-        }
-    }
-
-    private void updateNotification(boolean isRecording) {
-        Notification notif = buildNotification(isRecording ? getRecordingText() : getString(R.string.notification_idle));
-        NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        nm.notify(NOTIF_ID, notif);
-        if (isRecording) {
-            startForeground(NOTIF_ID, notif);
-        }
-    }
-
-    private String getRecordingText() {
-        long elapsed = Math.max(0, System.currentTimeMillis() - startMs);
-        long min = (elapsed / 1000) / 60;
-        long sec = (elapsed / 1000) % 60;
-        return getString(R.string.notification_recording) + " • " + String.format(Locale.getDefault(), "%02d:%02d", min, sec);
-    }
-
-    private Notification buildNotification(String text) {
-        return new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle(getString(R.string.app_name))
-                .setContentText(text)
-                .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-                .setOngoing(true)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
-                .build();
     }
 }

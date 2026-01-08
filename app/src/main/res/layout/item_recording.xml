@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="?android:attr/selectableItemBackground">
+
+    <TextView
+        android:id="@+id/recordingTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="call_20240108_143022.m4a"
+        android:textSize="16sp"
+        android:textColor="#333"
+        android:textStyle="bold"/>
+
+    <TextView
+        android:id="@+id/recordingMeta"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="2.5 MB"
+        android:textSize="14sp"
+        android:textColor="#999"
+        android:layout_marginTop="4dp"/>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#eeeeee"
+        android:layout_marginTop="16dp"/>
+
+</LinearLayout>
