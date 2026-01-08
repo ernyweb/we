@@ -57,6 +57,73 @@
         android:paddingTop="16dp"
         android:paddingBottom="8dp" />
 
+    <LinearLayout
+        android:id="@+id/playbackControls"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="#1e293b"
+        android:padding="12dp"
+        android:layout_marginBottom="8dp"
+        android:visibility="gone"
+        android:elevation="4dp">
+
+        <TextView
+            android:id="@+id/playbackFileName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="🎧 call_20240108.mp3"
+            android:textSize="14sp"
+            android:textColor="#e2e8f0"
+            android:textStyle="bold"
+            android:paddingBottom="8dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/currentTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="00:00"
+                android:textSize="12sp"
+                android:textColor="#94a3b8"
+                android:paddingEnd="8dp"/>
+
+            <SeekBar
+                android:id="@+id/seekBar"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:progressTint="#3b82f6"
+                android:thumbTint="#60a5fa"/>
+
+            <TextView
+                android:id="@+id/totalTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="00:00"
+                android:textSize="12sp"
+                android:textColor="#94a3b8"
+                android:paddingStart="8dp"/>
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btnStopPlayback"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="⏹ Durdur"
+            android:textAllCaps="false"
+            android:background="#ef4444"
+            android:textColor="#ffffff"
+            android:layout_marginTop="8dp"
+            android:padding="8dp"/>
+
+    </LinearLayout>
+
     <TextView
         android:id="@+id/emptyView"
         android:layout_width="match_parent"
