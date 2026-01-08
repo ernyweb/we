@@ -85,6 +85,17 @@
             android:textSize="18sp"
             android:textStyle="bold"
             android:backgroundTint="#666666"
+            android:layout_marginBottom="12dp"/>
+
+        <!-- System-Wide Mode Button -->
+        <Button
+            android:id="@+id/btnSystemWide"
+            android:layout_width="match_parent"
+            android:layout_height="80dp"
+            android:text="🌐 SİSTEM GENELİ: OFF\n(WhatsApp, Oyunlar, Aramalar)"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:backgroundTint="#666666"
             android:layout_marginBottom="24dp"/>
 
         <!-- Voice Effects Title -->
