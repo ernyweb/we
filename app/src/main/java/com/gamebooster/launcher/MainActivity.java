@@ -6,11 +6,14 @@ import android.content.pm.PackageManager;
 import android.media.MediaPlayer;
 import android.media.MediaRecorder;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -29,6 +32,7 @@ import java.util.Locale;
 public class MainActivity extends AppCompatActivity {
     
     private static final int PERMISSION_REQUEST_CODE = 100;
+    private static final int OVERLAY_PERMISSION_REQUEST_CODE = 101;
     
     private Button btnRecord;
     private Button btnStop;
@@ -40,6 +44,7 @@ public class MainActivity extends AppCompatActivity {
     private Button btnPlay;
     private Button btnShare;
     private Button btnRealtime;
+    private Button btnSystemWide;
     private TextView tvStatus;
     private RecyclerView rvRecordings;
     
@@ -49,6 +54,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean isRecording = false;
     private boolean isPlaying = false;
     private boolean isRealtimeMode = false;
+    private boolean isSystemWideActive = false;
     
     private VoiceEffect currentEffect = VoiceEffect.NONE;
     private RecordingListAdapter adapter;
@@ -79,6 +85,7 @@ public class MainActivity extends AppCompatActivity {
         btnPlay = findViewById(R.id.btnPlay);
         btnShare = findViewById(R.id.btnShare);
         btnRealtime = findViewById(R.id.btnRealtime);
+        btnSystemWide = findViewById(R.id.btnSystemWide);
         tvStatus = findViewById(R.id.tvStatus);
         rvRecordings = findViewById(R.id.rvRecordings);
         
@@ -92,6 +99,7 @@ public class MainActivity extends AppCompatActivity {
         btnPlay.setOnClickListener(v -> playWithEffect());
         btnShare.setOnClickListener(v -> shareRecording());
         btnRealtime.setOnClickListener(v -> toggleRealtime());
+        btnSystemWide.setOnClickListener(v -> toggleSystemWide());
         
         updateUI();
     }
@@ -231,6 +239,111 @@ public class MainActivity extends AppCompatActivity {
             btnRealtime.setBackgroundColor(0xFF4CAF50);
             tvStatus.setText("🎧 Real-time modu aktif - Konuş ve sesini duy!");
             updateUI();
+        }
+    }
+    
+    private void toggleSystemWide() {
+        if (isSystemWideActive) {
+            // Stop system-wide mode
+            stopSystemWideService();
+        } else {
+            // Check overlay permission first
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (!Settings.canDrawOverlays(this)) {
+                    // Show explanation dialog
+                    new AlertDialog.Builder(this)
+                        .setTitle("Overlay İzni Gerekli")
+                        .setMessage("Sistem genelinde ses değiştirme için overlay izni gerekiyor. " +
+                                "Ayarlara gidip izin verecek misiniz?")
+                        .setPositiveButton("Evet", (dialog, which) -> {
+                            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    Uri.parse("package:" + getPackageName()));
+                            startActivityForResult(intent, OVERLAY_PERMISSION_REQUEST_CODE);
+                        })
+                        .setNegativeButton("Hayır", null)
+                        .show();
+                    return;
+                }
+            }
+            
+            // Start system-wide mode
+            startSystemWideService();
+        }
+    }
+    
+    private void startSystemWideService() {
+        try {
+            // Set the current effect to the system service
+            SystemVoiceService.setEffect(convertToSystemEffect(currentEffect));
+            
+            // Start the foreground service
+            Intent serviceIntent = new Intent(this, SystemVoiceService.class);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent);
+            } else {
+                startService(serviceIntent);
+            }
+            
+            // Start the overlay service
+            Intent overlayIntent = new Intent(this, OverlayService.class);
+            startService(overlayIntent);
+            
+            isSystemWideActive = true;
+            btnSystemWide.setText("🌐 SİSTEM GENELİ: ON");
+            btnSystemWide.setBackgroundColor(0xFFFF5722);
+            tvStatus.setText("🌐 Sistem geneli ses değiştirme aktif!\n" +
+                    "WhatsApp, oyunlar, aramalar - HER YERDE!");
+            
+            Toast.makeText(this, "Sistem geneli mod aktif! Overlay butona tıkla.", Toast.LENGTH_LONG).show();
+            updateUI();
+            
+        } catch (Exception e) {
+            Toast.makeText(this, "Hata: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            e.printStackTrace();
+        }
+    }
+    
+    private void stopSystemWideService() {
+        try {
+            // Stop the services
+            stopService(new Intent(this, SystemVoiceService.class));
+            stopService(new Intent(this, OverlayService.class));
+            
+            isSystemWideActive = false;
+            btnSystemWide.setText("🌐 SİSTEM GENELİ: OFF");
+            btnSystemWide.setBackgroundColor(0xFF666666);
+            tvStatus.setText("Sistem geneli mod kapatıldı");
+            
+            updateUI();
+            
+        } catch (Exception e) {
+            Toast.makeText(this, "Hata: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            e.printStackTrace();
+        }
+    }
+    
+    private SystemVoiceService.VoiceEffect convertToSystemEffect(VoiceEffect effect) {
+        switch (effect) {
+            case ROBOT: return SystemVoiceService.VoiceEffect.ROBOT;
+            case WOMAN: return SystemVoiceService.VoiceEffect.WOMAN;
+            case MAN: return SystemVoiceService.VoiceEffect.MAN;
+            case CHILD: return SystemVoiceService.VoiceEffect.CHILD;
+            case MONSTER: return SystemVoiceService.VoiceEffect.MONSTER;
+            default: return SystemVoiceService.VoiceEffect.NONE;
+        }
+    }
+    
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == OVERLAY_PERMISSION_REQUEST_CODE) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (Settings.canDrawOverlays(this)) {
+                    Toast.makeText(this, "İzin verildi! Tekrar dene.", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(this, "İzin verilmedi :(", Toast.LENGTH_SHORT).show();
+                }
+            }
         }
     }
     
@@ -389,14 +502,15 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void updateUI() {
-        btnRecord.setEnabled(!isRecording && !isRealtimeMode);
+        btnRecord.setEnabled(!isRecording && !isRealtimeMode && !isSystemWideActive);
         btnStop.setEnabled(isRecording);
-        btnPlay.setEnabled(!isRecording && !isRealtimeMode && currentFile != null && currentFile.exists());
-        btnShare.setEnabled(!isRecording && !isRealtimeMode && currentFile != null && currentFile.exists());
-        btnRealtime.setEnabled(!isRecording);
+        btnPlay.setEnabled(!isRecording && !isRealtimeMode && !isSystemWideActive && currentFile != null && currentFile.exists());
+        btnShare.setEnabled(!isRecording && !isRealtimeMode && !isSystemWideActive && currentFile != null && currentFile.exists());
+        btnRealtime.setEnabled(!isRecording && !isSystemWideActive);
+        btnSystemWide.setEnabled(!isRecording && !isRealtimeMode);
         
-        // Disable effect buttons during recording
-        boolean effectsEnabled = !isRecording;
+        // Disable effect buttons during recording or system-wide mode
+        boolean effectsEnabled = !isRecording && !isSystemWideActive;
         btnRobot.setEnabled(effectsEnabled);
         btnWoman.setEnabled(effectsEnabled);
         btnMan.setEnabled(effectsEnabled);
@@ -419,6 +533,11 @@ public class MainActivity extends AppCompatActivity {
         // Stop realtime processing
         if (realtimeProcessor != null) {
             realtimeProcessor.stopRealtime();
+        }
+        
+        // Stop system-wide service if active
+        if (isSystemWideActive) {
+            stopSystemWideService();
         }
     }
     
