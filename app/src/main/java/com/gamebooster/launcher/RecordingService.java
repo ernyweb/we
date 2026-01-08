@@ -1,5 +1,6 @@
 package com.gamebooster.launcher;
 
+import android.Manifest;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -52,10 +53,16 @@ public class RecordingService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        createChannel();
-        startForeground(NOTIF_ID, buildNotification(getString(R.string.notification_idle)));
-        telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
-        registerListener();
+        try {
+            createChannel();
+            telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
+            startForeground(NOTIF_ID, buildNotification(getString(R.string.notification_idle)));
+            // Delay listener registration slightly to ensure service is fully started
+            handler.postDelayed(() -> registerListener(), 500);
+        } catch (Exception e) {
+            android.util.Log.e("RecordingService", "onCreate failed: " + e.getMessage(), e);
+            stopSelf();
+        }
     }
 
     @Override
@@ -81,6 +88,12 @@ public class RecordingService extends Service {
     private void registerListener() {
         if (telephonyManager == null) return;
         try {
+            // Check if we have required permissions
+            if (checkSelfPermission(Manifest.permission.READ_PHONE_STATE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                android.util.Log.w("RecordingService", "READ_PHONE_STATE permission not granted");
+                return;
+            }
+            
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 // Android 12+ use TelephonyCallback
                 registerCallbackApi31();
@@ -90,6 +103,8 @@ public class RecordingService extends Service {
             }
         } catch (SecurityException e) {
             android.util.Log.e("RecordingService", "Failed to register listener: " + e.getMessage());
+        } catch (Exception e) {
+            android.util.Log.e("RecordingService", "Unexpected error in registerListener: " + e.getMessage(), e);
         }
     }
 

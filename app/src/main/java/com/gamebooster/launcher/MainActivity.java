@@ -75,7 +75,11 @@ public class MainActivity extends AppCompatActivity implements RecordingAdapter.
             });
         } catch (Exception e) {
             android.util.Log.e("MainActivity", "onCreate crashed: " + e.getMessage(), e);
-            statusText.setText("Hata: " + e.getMessage());
+            if (statusText != null) {
+                statusText.setText("Hata: " + e.getMessage());
+            }
+            // Don't start service if initialization failed
+            return;
         }
     }
 
@@ -83,6 +87,12 @@ public class MainActivity extends AppCompatActivity implements RecordingAdapter.
     protected void onResume() {
         super.onResume();
         try {
+            // Check if views are initialized
+            if (statusText == null || recyclerView == null || btnRequest == null) {
+                android.util.Log.e("MainActivity", "Views not initialized in onResume");
+                return;
+            }
+            
             if (allPermissionsGranted()) {
                 startRecorderService();
                 loadRecordings();
