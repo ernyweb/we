@@ -1,0 +1,7 @@
+[
+{
+  "directory": "/workspaces/we/app/.cxx/RelWithDebInfo/5d4o4r54/armeabi-v7a",
+  "command": "/opt/android-sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++ --target=armv7-none-linux-androideabi24 --sysroot=/opt/android-sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/linux-x86_64/sysroot -Daudioprocessor_EXPORTS -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -march=armv7-a -mthumb -Wformat -Werror=format-security  -std=c++17 -O2 -g -DNDEBUG -fPIC -o CMakeFiles/audioprocessor.dir/audioprocessor.cpp.o -c /workspaces/we/app/src/main/cpp/audioprocessor.cpp",
+  "file": "/workspaces/we/app/src/main/cpp/audioprocessor.cpp"
+}
+]

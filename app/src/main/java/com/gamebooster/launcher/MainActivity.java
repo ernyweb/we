@@ -273,11 +273,14 @@ public class MainActivity extends AppCompatActivity {
     
     private void startSystemWideService() {
         try {
-            // Set the current effect to the system service
-            SystemVoiceService.setEffect(convertToSystemEffect(currentEffect));
+            // Stop any existing service first
+            stopService(new Intent(this, SystemVoiceService.class));
             
-            // Start the foreground service
-            Intent serviceIntent = new Intent(this, SystemVoiceService.class);
+            // Set the current effect to the audio effect service
+            AudioEffectService.setEffect(convertToAudioEffect(currentEffect));
+            
+            // Start the ADVANCED audio effect service (for calls and VoIP)
+            Intent serviceIntent = new Intent(this, AudioEffectService.class);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(serviceIntent);
             } else {
@@ -291,10 +294,11 @@ public class MainActivity extends AppCompatActivity {
             isSystemWideActive = true;
             btnSystemWide.setText("🌐 SİSTEM GENELİ: ON");
             btnSystemWide.setBackgroundColor(0xFFFF5722);
-            tvStatus.setText("🌐 Sistem geneli ses değiştirme aktif!\n" +
-                    "WhatsApp, oyunlar, aramalar - HER YERDE!");
+            tvStatus.setText("🌐 Sistem geneli aktif!\n" +
+                    "✅ WhatsApp, Discord, PUBG, Aramalar\n" +
+                    "🎯 VOICE_CALL özel modu - Aramalar için optimize edildi!");
             
-            Toast.makeText(this, "Sistem geneli mod aktif! Overlay butona tıkla.", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "✅ Gelişmiş mod aktif! Şimdi WhatsApp/Discord'dan arama yap!", Toast.LENGTH_LONG).show();
             updateUI();
             
         } catch (Exception e) {
@@ -306,6 +310,7 @@ public class MainActivity extends AppCompatActivity {
     private void stopSystemWideService() {
         try {
             // Stop the services
+            stopService(new Intent(this, AudioEffectService.class));
             stopService(new Intent(this, SystemVoiceService.class));
             stopService(new Intent(this, OverlayService.class));
             
@@ -319,6 +324,17 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             Toast.makeText(this, "Hata: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             e.printStackTrace();
+        }
+    }
+    
+    private AudioEffectService.VoiceEffect convertToAudioEffect(VoiceEffect effect) {
+        switch (effect) {
+            case ROBOT: return AudioEffectService.VoiceEffect.ROBOT;
+            case WOMAN: return AudioEffectService.VoiceEffect.WOMAN;
+            case MAN: return AudioEffectService.VoiceEffect.MAN;
+            case CHILD: return AudioEffectService.VoiceEffect.CHILD;
+            case MONSTER: return AudioEffectService.VoiceEffect.MONSTER;
+            default: return AudioEffectService.VoiceEffect.NONE;
         }
     }
     
