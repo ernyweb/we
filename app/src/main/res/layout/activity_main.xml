@@ -51,7 +51,7 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center"
-            android:paddingBottom="24dp">
+            android:paddingBottom="16dp">
 
             <Button
                 android:id="@+id/btnRecord"
@@ -75,6 +75,17 @@
                 android:backgroundTint="#FF5722"
                 android:enabled="false"/>
         </LinearLayout>
+
+        <!-- Real-Time Mode Button -->
+        <Button
+            android:id="@+id/btnRealtime"
+            android:layout_width="match_parent"
+            android:layout_height="70dp"
+            android:text="🎧 Real-Time: OFF"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:backgroundTint="#666666"
+            android:layout_marginBottom="24dp"/>
 
         <!-- Voice Effects Title -->
         <TextView

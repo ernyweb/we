@@ -39,6 +39,7 @@ public class MainActivity extends AppCompatActivity {
     private Button btnMonster;
     private Button btnPlay;
     private Button btnShare;
+    private Button btnRealtime;
     private TextView tvStatus;
     private RecyclerView rvRecordings;
     
@@ -47,15 +48,19 @@ public class MainActivity extends AppCompatActivity {
     private File currentFile;
     private boolean isRecording = false;
     private boolean isPlaying = false;
+    private boolean isRealtimeMode = false;
     
     private VoiceEffect currentEffect = VoiceEffect.NONE;
     private RecordingListAdapter adapter;
     private List<File> recordings = new ArrayList<>();
+    private RealtimeAudioProcessor realtimeProcessor;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        
+        realtimeProcessor = new RealtimeAudioProcessor();
         
         initViews();
         checkPermissions();
@@ -73,6 +78,7 @@ public class MainActivity extends AppCompatActivity {
         btnMonster = findViewById(R.id.btnMonster);
         btnPlay = findViewById(R.id.btnPlay);
         btnShare = findViewById(R.id.btnShare);
+        btnRealtime = findViewById(R.id.btnRealtime);
         tvStatus = findViewById(R.id.tvStatus);
         rvRecordings = findViewById(R.id.rvRecordings);
         
@@ -85,6 +91,7 @@ public class MainActivity extends AppCompatActivity {
         btnMonster.setOnClickListener(v -> selectEffect(VoiceEffect.MONSTER));
         btnPlay.setOnClickListener(v -> playWithEffect());
         btnShare.setOnClickListener(v -> shareRecording());
+        btnRealtime.setOnClickListener(v -> toggleRealtime());
         
         updateUI();
     }
@@ -162,6 +169,11 @@ public class MainActivity extends AppCompatActivity {
     private void selectEffect(VoiceEffect effect) {
         currentEffect = effect;
         
+        // Update realtime processor effect
+        if (realtimeProcessor != null) {
+            realtimeProcessor.setEffect(convertToRealtimeEffect(effect));
+        }
+        
         // Reset all button colors
         resetEffectButtons();
         
@@ -187,6 +199,38 @@ public class MainActivity extends AppCompatActivity {
                 btnMonster.setBackgroundColor(0xFF9C27B0);
                 tvStatus.setText("👹 Canavar sesi seçildi");
                 break;
+        }
+    }
+    
+    private RealtimeAudioProcessor.VoiceEffect convertToRealtimeEffect(VoiceEffect effect) {
+        switch (effect) {
+            case ROBOT: return RealtimeAudioProcessor.VoiceEffect.ROBOT;
+            case WOMAN: return RealtimeAudioProcessor.VoiceEffect.WOMAN;
+            case MAN: return RealtimeAudioProcessor.VoiceEffect.MAN;
+            case CHILD: return RealtimeAudioProcessor.VoiceEffect.CHILD;
+            case MONSTER: return RealtimeAudioProcessor.VoiceEffect.MONSTER;
+            default: return RealtimeAudioProcessor.VoiceEffect.NONE;
+        }
+    }
+    
+    private void toggleRealtime() {
+        if (isRealtimeMode) {
+            // Stop realtime mode
+            realtimeProcessor.stopRealtime();
+            isRealtimeMode = false;
+            btnRealtime.setText("🎧 Real-Time: OFF");
+            btnRealtime.setBackgroundColor(0xFF666666);
+            tvStatus.setText("Real-time modu kapatıldı");
+            updateUI();
+        } else {
+            // Start realtime mode
+            realtimeProcessor.setEffect(convertToRealtimeEffect(currentEffect));
+            realtimeProcessor.startRealtime();
+            isRealtimeMode = true;
+            btnRealtime.setText("🎧 Real-Time: ON");
+            btnRealtime.setBackgroundColor(0xFF4CAF50);
+            tvStatus.setText("🎧 Real-time modu aktif - Konuş ve sesini duy!");
+            updateUI();
         }
     }
     
@@ -345,10 +389,19 @@ public class MainActivity extends AppCompatActivity {
     }
     
     private void updateUI() {
-        btnRecord.setEnabled(!isRecording);
+        btnRecord.setEnabled(!isRecording && !isRealtimeMode);
         btnStop.setEnabled(isRecording);
-        btnPlay.setEnabled(!isRecording && currentFile != null && currentFile.exists());
-        btnShare.setEnabled(!isRecording && currentFile != null && currentFile.exists());
+        btnPlay.setEnabled(!isRecording && !isRealtimeMode && currentFile != null && currentFile.exists());
+        btnShare.setEnabled(!isRecording && !isRealtimeMode && currentFile != null && currentFile.exists());
+        btnRealtime.setEnabled(!isRecording);
+        
+        // Disable effect buttons during recording
+        boolean effectsEnabled = !isRecording;
+        btnRobot.setEnabled(effectsEnabled);
+        btnWoman.setEnabled(effectsEnabled);
+        btnMan.setEnabled(effectsEnabled);
+        btnChild.setEnabled(effectsEnabled);
+        btnMonster.setEnabled(effectsEnabled);
     }
     
     @Override
@@ -362,6 +415,11 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         stopPlayback();
+        
+        // Stop realtime processing
+        if (realtimeProcessor != null) {
+            realtimeProcessor.stopRealtime();
+        }
     }
     
     enum VoiceEffect {
