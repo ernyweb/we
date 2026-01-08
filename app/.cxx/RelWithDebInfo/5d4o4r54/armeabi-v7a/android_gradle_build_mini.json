@@ -1,0 +1,27 @@
+{
+  "buildFiles": [
+    "/workspaces/we/app/src/main/cpp/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/opt/android-sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/workspaces/we/app/.cxx/RelWithDebInfo/5d4o4r54/armeabi-v7a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/opt/android-sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/workspaces/we/app/.cxx/RelWithDebInfo/5d4o4r54/armeabi-v7a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {
+    "audioprocessor::@6890427a1f51a3e7e1df": {
+      "artifactName": "audioprocessor",
+      "abi": "armeabi-v7a",
+      "output": "/workspaces/we/app/build/intermediates/cxx/RelWithDebInfo/5d4o4r54/obj/armeabi-v7a/libaudioprocessor.so",
+      "runtimeFiles": []
+    }
+  }
+}

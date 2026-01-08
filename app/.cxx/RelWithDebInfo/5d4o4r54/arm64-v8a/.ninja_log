@@ -1,0 +1,3 @@
+# ninja log v5
+0	1811	1767873565279379371	CMakeFiles/audioprocessor.dir/audioprocessor.cpp.o	2cd521c6f245fe0
+1811	1848	1767873565316379372	/workspaces/we/app/build/intermediates/cxx/RelWithDebInfo/5d4o4r54/obj/arm64-v8a/libaudioprocessor.so	e4c38ff1bf6e5add

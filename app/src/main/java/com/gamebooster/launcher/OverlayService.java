@@ -13,6 +13,7 @@ import android.view.WindowManager;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 public class OverlayService extends Service {
     
@@ -129,33 +130,47 @@ public class OverlayService extends Service {
         TextView btnClose = expandedView.findViewById(R.id.btnOverlayClose);
         
         btnRobot.setOnClickListener(v -> {
+            AudioEffectService.setEffect(AudioEffectService.VoiceEffect.ROBOT);
             SystemVoiceService.setEffect(SystemVoiceService.VoiceEffect.ROBOT);
+            Toast.makeText(this, "🤖 Robot", Toast.LENGTH_SHORT).show();
             toggleExpanded();
         });
         
         btnWoman.setOnClickListener(v -> {
+            AudioEffectService.setEffect(AudioEffectService.VoiceEffect.WOMAN);
             SystemVoiceService.setEffect(SystemVoiceService.VoiceEffect.WOMAN);
+            Toast.makeText(this, "👩 Kadın", Toast.LENGTH_SHORT).show();
             toggleExpanded();
         });
         
         btnMan.setOnClickListener(v -> {
+            AudioEffectService.setEffect(AudioEffectService.VoiceEffect.MAN);
             SystemVoiceService.setEffect(SystemVoiceService.VoiceEffect.MAN);
+            Toast.makeText(this, "👨 Erkek", Toast.LENGTH_SHORT).show();
             toggleExpanded();
         });
         
         btnChild.setOnClickListener(v -> {
+            AudioEffectService.setEffect(AudioEffectService.VoiceEffect.CHILD);
             SystemVoiceService.setEffect(SystemVoiceService.VoiceEffect.CHILD);
+            Toast.makeText(this, "👶 Çocuk", Toast.LENGTH_SHORT).show();
             toggleExpanded();
         });
         
         btnMonster.setOnClickListener(v -> {
+            AudioEffectService.setEffect(AudioEffectService.VoiceEffect.MONSTER);
             SystemVoiceService.setEffect(SystemVoiceService.VoiceEffect.MONSTER);
+            Toast.makeText(this, "👹 Canavar", Toast.LENGTH_SHORT).show();
             toggleExpanded();
         });
         
         btnOff.setOnClickListener(v -> {
+            AudioEffectService.setEffect(AudioEffectService.VoiceEffect.NONE);
             SystemVoiceService.setEffect(SystemVoiceService.VoiceEffect.NONE);
-            toggleExpanded();
+            stopService(new Intent(this, AudioEffectService.class));
+            stopService(new Intent(this, SystemVoiceService.class));
+            stopSelf();
+            Toast.makeText(this, "❌ Kapatıldı", Toast.LENGTH_SHORT).show();
         });
         
         btnClose.setOnClickListener(v -> toggleExpanded());
