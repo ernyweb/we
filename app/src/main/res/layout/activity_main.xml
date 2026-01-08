@@ -1,144 +1,214 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp"
-    android:background="#0f172a">
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Call Recorder"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:textColor="#e2e8f0"
-        android:gravity="center"
-        android:padding="8dp" />
-
-    <TextView
-        android:id="@+id/statusText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="İzinler bekleniyor"
-        android:textSize="14sp"
-        android:textColor="#cbd5e1"
-        android:padding="4dp" />
-
-    <Button
-        android:id="@+id/btnRequest"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="İzinleri ver ve servisi başlat"
-        android:textAllCaps="false"
-        android:background="#2563eb"
-        android:textColor="#ffffff"
-        android:padding="12dp"
-        android:layout_marginTop="8dp" />
-
-    <Button
-        android:id="@+id/btnSettings"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="⚙ Ayarlar"
-        android:textAllCaps="false"
-        android:background="#10b981"
-        android:textColor="#ffffff"
-        android:padding="12dp"
-        android:layout_marginTop="8dp" />
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Kayıtlar"
-        android:textSize="16sp"
-        android:textStyle="bold"
-        android:textColor="#e2e8f0"
-        android:paddingTop="16dp"
-        android:paddingBottom="8dp" />
+    android:background="#1a1a2e"
+    android:fillViewport="true">
 
     <LinearLayout
-        android:id="@+id/playbackControls"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:background="#1e293b"
-        android:padding="12dp"
-        android:layout_marginBottom="8dp"
-        android:visibility="gone"
-        android:elevation="4dp">
+        android:padding="16dp">
 
+        <!-- Header -->
         <TextView
-            android:id="@+id/playbackFileName"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="🎧 call_20240108.mp3"
-            android:textSize="14sp"
-            android:textColor="#e2e8f0"
+            android:text="🎙️ Voice Changer"
+            android:textSize="32sp"
             android:textStyle="bold"
+            android:textColor="#ffffff"
+            android:gravity="center"
             android:paddingBottom="8dp"/>
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Sesinizi değiştirin ve eğlenin!"
+            android:textSize="14sp"
+            android:textColor="#aaaaaa"
+            android:gravity="center"
+            android:paddingBottom="24dp"/>
+
+        <!-- Status -->
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Kayıt yapmaya hazır"
+            android:textSize="16sp"
+            android:textColor="#4CAF50"
+            android:gravity="center"
+            android:background="#2a2a3e"
+            android:padding="12dp"
+            android:layout_marginBottom="16dp"
+            android:textStyle="bold"/>
+
+        <!-- Recording Controls -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:gravity="center"
+            android:paddingBottom="24dp">
 
-            <TextView
-                android:id="@+id/currentTime"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="00:00"
-                android:textSize="12sp"
-                android:textColor="#94a3b8"
-                android:paddingEnd="8dp"/>
-
-            <SeekBar
-                android:id="@+id/seekBar"
+            <Button
+                android:id="@+id/btnRecord"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="80dp"
                 android:layout_weight="1"
-                android:progressTint="#3b82f6"
-                android:thumbTint="#60a5fa"/>
+                android:text="🎤\nKaydet"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:backgroundTint="#f44336"
+                android:layout_marginEnd="8dp"/>
 
-            <TextView
-                android:id="@+id/totalTime"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="00:00"
-                android:textSize="12sp"
-                android:textColor="#94a3b8"
-                android:paddingStart="8dp"/>
+            <Button
+                android:id="@+id/btnStop"
+                android:layout_width="0dp"
+                android:layout_height="80dp"
+                android:layout_weight="1"
+                android:text="⏹️\nDurdur"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:backgroundTint="#FF5722"
+                android:enabled="false"/>
         </LinearLayout>
 
-        <Button
-            android:id="@+id/btnStopPlayback"
+        <!-- Voice Effects Title -->
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="⏹ Durdur"
-            android:textAllCaps="false"
-            android:background="#ef4444"
+            android:text="Ses Efektleri:"
+            android:textSize="18sp"
             android:textColor="#ffffff"
-            android:layout_marginTop="8dp"
+            android:textStyle="bold"
+            android:paddingBottom="12dp"/>
+
+        <!-- Voice Effects Grid -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="16dp">
+
+            <!-- Row 1 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingBottom="8dp">
+
+                <Button
+                    android:id="@+id/btnRobot"
+                    android:layout_width="0dp"
+                    android:layout_height="60dp"
+                    android:layout_weight="1"
+                    android:text="🤖 Robot"
+                    android:textSize="14sp"
+                    android:backgroundTint="#BBBBBB"
+                    android:layout_marginEnd="4dp"/>
+
+                <Button
+                    android:id="@+id/btnWoman"
+                    android:layout_width="0dp"
+                    android:layout_height="60dp"
+                    android:layout_weight="1"
+                    android:text="👩 Kadın"
+                    android:textSize="14sp"
+                    android:backgroundTint="#BBBBBB"
+                    android:layout_marginStart="4dp"/>
+            </LinearLayout>
+
+            <!-- Row 2 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingBottom="8dp">
+
+                <Button
+                    android:id="@+id/btnMan"
+                    android:layout_width="0dp"
+                    android:layout_height="60dp"
+                    android:layout_weight="1"
+                    android:text="👨 Erkek"
+                    android:textSize="14sp"
+                    android:backgroundTint="#BBBBBB"
+                    android:layout_marginEnd="4dp"/>
+
+                <Button
+                    android:id="@+id/btnChild"
+                    android:layout_width="0dp"
+                    android:layout_height="60dp"
+                    android:layout_weight="1"
+                    android:text="👶 Çocuk"
+                    android:textSize="14sp"
+                    android:backgroundTint="#BBBBBB"
+                    android:layout_marginStart="4dp"/>
+            </LinearLayout>
+
+            <!-- Row 3 -->
+            <Button
+                android:id="@+id/btnMonster"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"
+                android:text="👹 Canavar"
+                android:textSize="14sp"
+                android:backgroundTint="#BBBBBB"/>
+        </LinearLayout>
+
+        <!-- Playback Controls -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:paddingBottom="24dp">
+
+            <Button
+                android:id="@+id/btnPlay"
+                android:layout_width="0dp"
+                android:layout_height="70dp"
+                android:layout_weight="1"
+                android:text="▶️ Oynat"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:backgroundTint="#4CAF50"
+                android:layout_marginEnd="8dp"
+                android:enabled="false"/>
+
+            <Button
+                android:id="@+id/btnShare"
+                android:layout_width="0dp"
+                android:layout_height="70dp"
+                android:layout_weight="1"
+                android:text="📤 Paylaş"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:backgroundTint="#2196F3"
+                android:enabled="false"/>
+        </LinearLayout>
+
+        <!-- Recordings List Title -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Kayıtlarım:"
+            android:textSize="18sp"
+            android:textColor="#ffffff"
+            android:textStyle="bold"
+            android:paddingBottom="12dp"/>
+
+        <!-- Recordings List -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvRecordings"
+            android:layout_width="match_parent"
+            android:layout_height="300dp"
+            android:background="#2a2a3e"
             android:padding="8dp"/>
 
     </LinearLayout>
 
-    <TextView
-        android:id="@+id/emptyView"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Henüz kayıt yok"
-        android:textColor="#94a3b8"
-        android:textSize="14sp"
-        android:visibility="gone"
-        android:padding="8dp" />
-
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recordingsList"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:background="#111827" />
-
-</LinearLayout>
+</ScrollView>

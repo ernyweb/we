@@ -10,8 +10,8 @@ android {
         applicationId = "com.gamebooster.launcher"
         minSdk = 24
         targetSdk = 33
-        versionCode = 15
-        versionName = "2.3.0"
+        versionCode = 1
+        versionName = "1.0.0"
     }
 
     signingConfigs {
