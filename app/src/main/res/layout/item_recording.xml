@@ -1,33 +1,63 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:padding="16dp"
-    android:background="?android:attr/selectableItemBackground">
+    android:layout_marginBottom="8dp"
+    app:cardBackgroundColor="#3a3a4e"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="4dp">
 
-    <TextView
-        android:id="@+id/recordingTitle"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="call_20240108_143022.m4a"
-        android:textSize="16sp"
-        android:textColor="#333"
-        android:textStyle="bold"/>
+        android:orientation="vertical"
+        android:padding="12dp">
 
-    <TextView
-        android:id="@+id/recordingMeta"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="2.5 MB"
-        android:textSize="14sp"
-        android:textColor="#999"
-        android:layout_marginTop="4dp"/>
+        <TextView
+            android:id="@+id/tvFileName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="voice_20240108_123456.3gp"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="#ffffff"
+            android:paddingBottom="4dp"/>
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="#eeeeee"
-        android:layout_marginTop="16dp"/>
+        <TextView
+            android:id="@+id/tvFileInfo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="08/01/2024 12:34 • 45 KB"
+            android:textSize="12sp"
+            android:textColor="#aaaaaa"
+            android:paddingBottom="8dp"/>
 
-</LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnPlayItem"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="1"
+                android:text="▶️ Oynat"
+                android:textSize="14sp"
+                android:backgroundTint="#4CAF50"
+                android:layout_marginEnd="4dp"/>
+
+            <Button
+                android:id="@+id/btnDeleteItem"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="1"
+                android:text="🗑️ Sil"
+                android:textSize="14sp"
+                android:backgroundTint="#f44336"
+                android:layout_marginStart="4dp"/>
+        </LinearLayout>
+    </LinearLayout>
+
+</androidx.cardview.widget.CardView>
