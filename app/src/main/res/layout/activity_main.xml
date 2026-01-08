@@ -4,76 +4,63 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="16dp"
-    android:background="#1a1a2e">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:padding="16dp"
-        android:background="#16213e"
-        android:layout_marginBottom="16dp">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="🎮 Game Launcher"
-                android:textSize="28sp"
-                android:textColor="#00ff00"
-                android:textStyle="bold"
-                android:gravity="center" />
-
-            <Button
-                android:id="@+id/settingsButton"
-                android:layout_width="50dp"
-                android:layout_height="50dp"
-                android:text="⚙️"
-                android:textSize="24sp"
-                android:background="#0f3460"
-                android:textColor="#00ff00" />
-        </LinearLayout>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="FPS Booster with Performance Optimization"
-            android:textSize="14sp"
-            android:textColor="#ffaa00"
-            android:gravity="center"
-            android:layout_marginTop="8dp" />
-    </LinearLayout>
-
-    <ProgressBar
-        android:id="@+id/progressBar"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:visibility="gone" />
+    android:background="#0f172a">
 
     <TextView
-        android:id="@+id/statsText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Oyunlar yükleniyor..."
-        android:textColor="#ffffff"
+        android:text="Call Recorder"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:textColor="#e2e8f0"
+        android:gravity="center"
+        android:padding="8dp" />
+
+    <TextView
+        android:id="@+id/statusText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="İzinler bekleniyor"
         android:textSize="14sp"
-        android:padding="8dp"
-        android:gravity="center" />
+        android:textColor="#cbd5e1"
+        android:padding="4dp" />
+
+    <Button
+        android:id="@+id/btnRequest"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="İzinleri ver ve servisi başlat"
+        android:textAllCaps="false"
+        android:background="#2563eb"
+        android:textColor="#ffffff"
+        android:padding="12dp"
+        android:layout_marginTop="8dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Kayıtlar"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textColor="#e2e8f0"
+        android:paddingTop="16dp"
+        android:paddingBottom="8dp" />
+
+    <TextView
+        android:id="@+id/emptyView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Henüz kayıt yok"
+        android:textColor="#94a3b8"
+        android:textSize="14sp"
+        android:visibility="gone"
+        android:padding="8dp" />
 
     <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/gamesRecyclerView"
+        android:id="@+id/recordingsList"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginTop="16dp"
-        android:background="#0f3460" />
+        android:background="#111827" />
 
 </LinearLayout>

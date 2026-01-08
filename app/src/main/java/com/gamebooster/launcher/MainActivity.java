@@ -3,188 +3,235 @@ package com.gamebooster.launcher;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.media.MediaMetadataRetriever;
+import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
-import android.widget.ProgressBar;
 import android.widget.TextView;
-import android.util.Log;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import java.io.File;
+import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements RecordingAdapter.OnItemClickListener {
 
-    private GameDetector gameDetector;
-    private GameLauncher gameLauncher;
-    private GameAdapter gameAdapter;
+    private TextView statusText;
+    private TextView emptyView;
     private RecyclerView recyclerView;
-    private ProgressBar progressBar;
-    private TextView statsText;
+    private Button btnRequest;
+    private RecordingAdapter adapter;
+    private MediaPlayer mediaPlayer;
 
-    private static final int PERMISSION_REQUEST_CODE = 100;
-    private static final String TAG = "MainActivity";
+    private final ActivityResultLauncher<String[]> permissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), result -> {
+                if (allPermissionsGranted()) {
+                    startRecorderService();
+                    loadRecordings();
+                } else {
+                    statusText.setText(getString(R.string.perm_rationale));
+                }
+            });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        try {
+            setContentView(R.layout.activity_main);
 
-        gameDetector = new GameDetector(this);
-        gameLauncher = new GameLauncher(this);
+            statusText = findViewById(R.id.statusText);
+            emptyView = findViewById(R.id.emptyView);
+            recyclerView = findViewById(R.id.recordingsList);
+            btnRequest = findViewById(R.id.btnRequest);
 
-        recyclerView = findViewById(R.id.gamesRecyclerView);
-        progressBar = findViewById(R.id.progressBar);
-        statsText = findViewById(R.id.statsText);
-
-        setupRecyclerView();
-
-        // Settings button
-        Button settingsButton = findViewById(R.id.settingsButton);
-        settingsButton.setOnClickListener(v -> {
-            Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
-            startActivity(intent);
-        });
-
-        // Android 11+ cihazlarda permission iste
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            List<String> missingPermissions = new ArrayList<>();
-
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.QUERY_ALL_PACKAGES)
-                    != PackageManager.PERMISSION_GRANTED) {
-                missingPermissions.add(Manifest.permission.QUERY_ALL_PACKAGES);
-            }
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.GET_TASKS)
-                    != PackageManager.PERMISSION_GRANTED) {
-                missingPermissions.add(Manifest.permission.GET_TASKS);
-            }
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.KILL_BACKGROUND_PROCESSES)
-                    != PackageManager.PERMISSION_GRANTED) {
-                missingPermissions.add(Manifest.permission.KILL_BACKGROUND_PROCESSES);
+            if (recyclerView == null || statusText == null || btnRequest == null) {
+                throw new RuntimeException("Layout views not found");
             }
 
-            if (!missingPermissions.isEmpty()) {
-                ActivityCompat.requestPermissions(this,
-                        missingPermissions.toArray(new String[0]),
-                        PERMISSION_REQUEST_CODE);
-            } else {
-                loadGames();
-            }
-        } else {
-            loadGames();
+            recyclerView.setLayoutManager(new LinearLayoutManager(this));
+            adapter = new RecordingAdapter(new ArrayList<>(), this);
+            recyclerView.setAdapter(adapter);
+
+            btnRequest.setOnClickListener(v -> {
+                if (allPermissionsGranted()) {
+                    startRecorderService();
+                    loadRecordings();
+                } else {
+                    requestPerms();
+                }
+            });
+        } catch (Exception e) {
+            android.util.Log.e("MainActivity", "onCreate crashed: " + e.getMessage(), e);
+            statusText.setText("Hata: " + e.getMessage());
         }
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == PERMISSION_REQUEST_CODE) {
-            loadGames();
+    protected void onResume() {
+        super.onResume();
+        try {
+            if (allPermissionsGranted()) {
+                startRecorderService();
+                loadRecordings();
+            } else {
+                statusText.setText(getString(R.string.perm_rationale));
+            }
+        } catch (Exception e) {
+            android.util.Log.e("MainActivity", "onResume crashed: " + e.getMessage(), e);
+            if (statusText != null) statusText.setText("Hata: " + e.getMessage());
         }
     }
 
-    private void setupRecyclerView() {
-        gameAdapter = new GameAdapter(new ArrayList<>(), new GameAdapter.OnGameClickListener() {
-            @Override
-            public void onGameClick(GameInfo gameInfo) {
-                launchGame(gameInfo.getPackageName());
-            }
-        });
-        recyclerView.setAdapter(gameAdapter);
-        recyclerView.setLayoutManager(new GridLayoutManager(this, 2));
+    private void requestPerms() {
+        List<String> perms = new ArrayList<>();
+        perms.add(Manifest.permission.RECORD_AUDIO);
+        perms.add(Manifest.permission.READ_PHONE_STATE);
+        perms.add(Manifest.permission.READ_CALL_LOG);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            perms.add(Manifest.permission.POST_NOTIFICATIONS);
+        }
+        permissionLauncher.launch(perms.toArray(new String[0]));
     }
 
-    private void loadGames() {
-        progressBar.setVisibility(View.VISIBLE);
+    private boolean allPermissionsGranted() {
+        boolean audio = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+        boolean phone = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED;
+        boolean callLog = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED;
+        boolean notif = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+        return audio && phone && callLog && notif;
+    }
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
+    private void startRecorderService() {
+        try {
+            if (statusText != null) {
+                statusText.setText(R.string.notification_idle);
+            }
+            Intent intent = new Intent(this, RecordingService.class);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 try {
-                    List<GameInfo> games;
-                    try {
-                        games = gameDetector.findInstalledGames();
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error finding games: " + e.getMessage(), e);
-                        games = new ArrayList<>();
-                    }
-
-                    final List<GameInfo> finalGames = games;
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                gameAdapter.updateGames(finalGames);
-                                progressBar.setVisibility(View.GONE);
-                                if (finalGames.isEmpty()) {
-                                    statsText.setText("❌ Oyun bulunamadı");
-                                } else {
-                                    statsText.setText(finalGames.size() + " oyun bulundu");
-                                }
-                            } catch (Exception e) {
-                                Log.e(TAG, "Error updating UI: " + e.getMessage());
-                                statsText.setText("❌ UI güncelleme hatası");
-                                progressBar.setVisibility(View.GONE);
-                            }
-                        }
-                    });
+                    ContextCompat.startForegroundService(this, intent);
                 } catch (Exception e) {
-                    Log.e(TAG, "Unexpected error in loadGames: " + e.getMessage(), e);
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            statsText.setText("❌ Beklenmeyen hata");
-                            progressBar.setVisibility(View.GONE);
-                        }
-                    });
+                    android.util.Log.e("MainActivity", "Failed to start foreground service: " + e.getMessage(), e);
+                    // Try regular startService as fallback
+                    startService(intent);
                 }
+            } else {
+                startService(intent);
             }
-        }).start();
+        } catch (Exception e) {
+            android.util.Log.e("MainActivity", "startRecorderService crashed: " + e.getMessage(), e);
+            if (statusText != null) {
+                statusText.setText("Servis hatası: " + e.getMessage());
+            }
+        }
     }
 
-    private void launchGame(String packageName) {
-        progressBar.setVisibility(View.VISIBLE);
-        statsText.setText("Sistem optimizasyonu...");
-
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                GameLauncher.LaunchResult result = gameLauncher.launchGameWithBoost(packageName);
-
-                if (result instanceof GameLauncher.LaunchResult.Success) {
-                    GameLauncher.LaunchResult.Success success = (GameLauncher.LaunchResult.Success) result;
-                    final String message = "📊 Optimizasyon Tamamlandı\n" +
-                            "💾 Temizlenen RAM: " + (success.getCleanedRam() / 1024 / 1024) + "MB\n" +
-                            "⚡ Beklenen FPS Artış: +" + success.getExpectedFpsBoost() + "%\n" +
-                            "🚀 Oyun başlatılıyor...";
-
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            statsText.setText(message);
-                            progressBar.setVisibility(View.GONE);
-                        }
-                    });
-                } else if (result instanceof GameLauncher.LaunchResult.Error) {
-                    GameLauncher.LaunchResult.Error error = (GameLauncher.LaunchResult.Error) result;
-                    final String errorMessage = "❌ Hata: " + error.getMessage();
-
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            statsText.setText(errorMessage);
-                            progressBar.setVisibility(View.GONE);
-                        }
-                    });
+    private void loadRecordings() {
+        try {
+            File dir = new File(getExternalFilesDir(null), "recordings");
+            if (!dir.exists() || !dir.isDirectory()) {
+                emptyView.setVisibility(View.VISIBLE);
+                adapter.update(new ArrayList<>());
+                return;
+            }
+            File[] files = dir.listFiles();
+            List<RecordingItem> items = new ArrayList<>();
+            if (files != null) {
+                for (File f : files) {
+                    if (!f.isFile()) continue;
+                    long durationMs = readDuration(f);
+                    String title = f.getName();
+                    String meta = formatDuration(durationMs) + " • " + formatSize(f.length());
+                    items.add(new RecordingItem(title, f.getAbsolutePath(), meta));
                 }
             }
-        }).start();
+            emptyView.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
+            adapter.update(items);
+        } catch (Exception e) {
+            android.util.Log.e("MainActivity", "loadRecordings crashed: " + e.getMessage(), e);
+            statusText.setText("Kayıt yükleme hatası: " + e.getMessage());
+        }
+    }
+
+    private long readDuration(File f) {
+        MediaMetadataRetriever mmr = new MediaMetadataRetriever();
+        try {
+            mmr.setDataSource(f.getAbsolutePath());
+            String dur = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
+            if (dur != null) return Long.parseLong(dur);
+        } catch (Exception ignored) {
+        } finally {
+            try {
+                mmr.release();
+            } catch (Exception ignored) {
+            }
+        }
+        return 0L;
+    }
+
+    private String formatDuration(long ms) {
+        long totalSec = ms / 1000;
+        long min = totalSec / 60;
+        long sec = totalSec % 60;
+        return String.format(Locale.getDefault(), "%02d:%02d", min, sec);
+    }
+
+    private String formatSize(long bytes) {
+        if (bytes <= 0) return "0 B";
+        String[] units = {"B", "KB", "MB", "GB"};
+        double size = bytes;
+        int idx = 0;
+        while (size > 1024 && idx < units.length - 1) {
+            size /= 1024.0;
+            idx++;
+        }
+        return new DecimalFormat("#.##").format(size) + " " + units[idx];
+    }
+
+    @Override
+    public void onItemClick(@NonNull RecordingItem item) {
+        play(item.path());
+    }
+
+    private void play(String path) {
+        stopPlayer();
+        try {
+            mediaPlayer = new MediaPlayer();
+            mediaPlayer.setDataSource(path);
+            mediaPlayer.setOnPreparedListener(MediaPlayer::start);
+            mediaPlayer.prepareAsync();
+            statusText.setText("Oynatılıyor: " + new File(path).getName());
+        } catch (Exception e) {
+            statusText.setText("Oynatma hatası");
+            stopPlayer();
+        }
+    }
+
+    private void stopPlayer() {
+        if (mediaPlayer != null) {
+            mediaPlayer.stop();
+            mediaPlayer.release();
+            mediaPlayer = null;
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        stopPlayer();
+        super.onDestroy();
     }
 }

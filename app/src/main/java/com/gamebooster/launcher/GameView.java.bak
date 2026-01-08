@@ -1,0 +1,407 @@
+package com.gamebooster.launcher;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.PointF;
+import android.view.MotionEvent;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+
+/**
+ * Pseudo-3D runner: camera behind player, zombies run toward you. No WebView.
+ */
+public class GameView extends SurfaceView implements SurfaceHolder.Callback, Runnable {
+
+    private static final float TARGET_FPS = 60f;
+    private static final float GRAVITY = -18f;        // world units / s^2 (down)
+    private static final float JUMP_VELOCITY = 8.5f;  // units / s
+    private static final float BASE_SPEED = 10f;      // world units / s
+    private static final float Z_SPAWN_MIN = 22f;
+    private static final float Z_SPAWN_MAX = 30f;
+    private static final float COLLISION_Z = 1.4f;
+
+    private final SurfaceHolder holder;
+    private Thread loopThread;
+    private volatile boolean running = false;
+
+    private int width;
+    private int height;
+    private float pxPerUnit; // pixels per world unit
+
+    private final float[] lanes = new float[]{-2.0f, 0f, 2.0f};
+    private int currentLane = 1;
+
+    private float playerY = 0f;
+    private float playerVy = 0f;
+    private final float playerW = 0.8f;
+    private final float playerH = 1.6f;
+
+    // camera slightly behind player
+    private final float camY = 1.8f;
+    private final float camZ = -6f;
+    private final float camFov = 10f;
+
+    private final Paint roadPaint = new Paint();
+    private final Paint linePaint = new Paint();
+    private final Paint textPaint = new Paint();
+    private final Paint buildingPaint = new Paint();
+    private final Paint playerPaint = new Paint();
+
+    private final Random random = new Random();
+    private final List<Zombie> zombies = new ArrayList<>();
+    private final List<Building> buildings = new ArrayList<>();
+
+    private float animTime = 0f;
+    private float touchStartX = -1f;
+    private float touchStartY = -1f;
+    private float dragThresholdPx = 60f;
+
+    private float spawnTimer = 0f;
+    private float spawnInterval = 1.15f;
+    private int score = 0;
+    private int best = 0;
+    private boolean playing = false;
+    private boolean gameOver = false;
+
+    private Bitmap[] zombieBitmaps;
+
+    private final SharedPreferences prefs;
+
+    public GameView(Context context) {
+        super(context);
+        holder = getHolder();
+        holder.addCallback(this);
+        setFocusable(true);
+
+        prefs = context.getSharedPreferences("runner3d_native", Context.MODE_PRIVATE);
+        best = prefs.getInt("best", 0);
+
+        roadPaint.setColor(Color.parseColor("#0a0a0f"));
+        linePaint.setColor(Color.WHITE);
+        linePaint.setStrokeWidth(4f);
+
+        textPaint.setColor(Color.WHITE);
+        textPaint.setTextSize(54f);
+        textPaint.setAntiAlias(true);
+        textPaint.setShadowLayer(4f, 2f, 2f, Color.BLACK);
+
+        buildingPaint.setColor(Color.parseColor("#1c1c2b"));
+        playerPaint.setColor(Color.parseColor("#00c853"));
+
+        loadZombieBitmaps(context);
+    }
+
+    private void loadZombieBitmaps(Context context) {
+        String[] files = new String[]{
+                "zm/plantzombie.png",
+                "zm/stevezombie.png",
+                "zm/tralalelozombie.jpg",
+                "zm/sahurzombie.jpg",
+                "zm/bananinizombie.jfif"
+        };
+        List<Bitmap> list = new ArrayList<>();
+        for (String f : files) {
+            try (InputStream is = context.getAssets().open(f)) {
+                Bitmap bmp = BitmapFactory.decodeStream(is);
+                if (bmp != null) list.add(bmp);
+            } catch (IOException ignored) { }
+        }
+        zombieBitmaps = list.toArray(new Bitmap[0]);
+    }
+
+    @Override
+    public void surfaceCreated(SurfaceHolder holder) {
+        width = getWidth();
+        height = getHeight();
+        pxPerUnit = width * 0.12f;
+        dragThresholdPx = Math.max(40f, width * 0.08f);
+
+        initBuildings();
+        startLoop();
+    }
+
+    private void initBuildings(){
+        buildings.clear();
+        for(float z = 8f; z < 60f; z += 5f){
+            buildings.add(new Building(-4.5f, z, 1.2f, 3f + random.nextFloat()*3f));
+            buildings.add(new Building(4.5f, z + 2.5f, 1.2f, 3f + random.nextFloat()*3f));
+        }
+    }
+
+    @Override public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
+
+    @Override
+    public void surfaceDestroyed(SurfaceHolder holder) {
+        stopLoop();
+    }
+
+    private void startLoop() {
+        running = true;
+        loopThread = new Thread(this, "GameLoop");
+        loopThread.start();
+    }
+
+    private void stopLoop() {
+        running = false;
+        if (loopThread != null) {
+            try { loopThread.join(); } catch (InterruptedException ignored) { }
+        }
+    }
+
+    @Override
+    public void run() {
+        long prev = System.nanoTime();
+        while (running) {
+            long now = System.nanoTime();
+            float dt = (now - prev) / 1_000_000_000f;
+            prev = now;
+
+            update(dt);
+            drawFrame();
+
+            long frameTime = System.nanoTime() - now;
+            long targetNanos = (long)(1_000_000_000f / TARGET_FPS);
+            if(frameTime < targetNanos){
+                try { Thread.sleep((targetNanos - frameTime) / 1_000_000L); } catch (InterruptedException ignored) {}
+            }
+        }
+    }
+
+    private void update(float dt){
+        if(!playing) return;
+
+        animTime += dt;
+
+        playerVy += GRAVITY * dt;
+        playerY += playerVy * dt;
+        if(playerY < 0f){ playerY = 0f; playerVy = 0f; }
+
+        spawnTimer += dt;
+        if(spawnTimer > spawnInterval){
+            spawnTimer = 0f;
+            spawnZombie();
+        }
+
+        float speed = BASE_SPEED + Math.min(8f, score * 0.0025f);
+
+        for(int i = zombies.size()-1; i >=0; i--){
+            Zombie z = zombies.get(i);
+            z.z -= speed * dt;
+            if(z.z < 0f){ zombies.remove(i); }
+        }
+
+        for(Building b : buildings){
+            b.z -= speed * dt * 0.9f;
+            if(b.z < 2f){
+                b.z += 60f;
+                b.h = 3f + random.nextFloat()*3f;
+            }
+        }
+
+        score += (int)(speed * dt * 12f);
+
+        for(Zombie z : zombies){
+            if(Math.abs(z.x - lanes[currentLane]) < 0.7f && z.z < COLLISION_Z){
+                if(playerY < 1.0f){
+                    onGameOver();
+                    break;
+                }
+            }
+        }
+    }
+
+    private void spawnZombie(){
+        if(zombieBitmaps == null || zombieBitmaps.length == 0) return;
+        Bitmap bmp = zombieBitmaps[random.nextInt(zombieBitmaps.length)];
+        float lane = lanes[random.nextInt(3)];
+        float zPos = Z_SPAWN_MIN + random.nextFloat() * (Z_SPAWN_MAX - Z_SPAWN_MIN);
+        float scale = 0.9f + random.nextFloat()*0.5f;
+        zombies.add(new Zombie(lane, zPos, 1.2f*scale, 1.8f*scale, bmp));
+    }
+
+    private void onGameOver(){
+        playing = false;
+        gameOver = true;
+        if(score > best){
+            best = score;
+            prefs.edit().putInt("best", best).apply();
+        }
+    }
+
+    private void restart(){
+        zombies.clear();
+        score = 0;
+        spawnTimer = 0f;
+        gameOver = false;
+        playing = true;
+        playerY = 0f;
+        playerVy = 0f;
+        currentLane = 1;
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        if(event.getAction() == MotionEvent.ACTION_DOWN){
+            if(!playing){
+                restart();
+                return true;
+            }
+            touchStartX = event.getX();
+            touchStartY = event.getY();
+            float x = event.getX();
+            float third = width / 3f;
+            if(x < third){
+                currentLane = Math.max(0, currentLane - 1);
+            } else if(x > 2*third){
+                currentLane = Math.min(2, currentLane + 1);
+            } else {
+                if(playerY <= 0.01f){ playerVy = JUMP_VELOCITY; }
+            }
+            return true;
+        } else if(event.getAction() == MotionEvent.ACTION_MOVE){
+            if(!playing) return true;
+            float dx = event.getX() - touchStartX;
+            float dy = event.getY() - touchStartY;
+            if(Math.abs(dx) > dragThresholdPx){
+                if(dx > 0){ currentLane = Math.min(2, currentLane + 1); }
+                else { currentLane = Math.max(0, currentLane - 1); }
+                touchStartX = event.getX();
+                touchStartY = event.getY();
+            }
+            if(dy < -dragThresholdPx && playerY <= 0.01f){
+                playerVy = JUMP_VELOCITY;
+                touchStartY = event.getY();
+            }
+            return true;
+        } else if(event.getAction() == MotionEvent.ACTION_UP){
+            touchStartX = touchStartY = -1f;
+        }
+        return super.onTouchEvent(event);
+    }
+
+    private void drawFrame(){
+        Canvas canvas = holder.lockCanvas();
+        if(canvas == null) return;
+        try {
+            canvas.drawColor(Color.parseColor("#05101a"));
+            drawRoad(canvas);
+            drawBuildings(canvas);
+            drawZombies(canvas);
+            drawPlayer(canvas);
+            drawHud(canvas);
+        } finally {
+            holder.unlockCanvasAndPost(canvas);
+        }
+    }
+
+    private void drawRoad(Canvas canvas){
+        PointF tl = project(-3.2f, 0f, 4f);
+        PointF tr = project(3.2f, 0f, 4f);
+        PointF bl = project(-5f, 0f, 40f);
+        PointF br = project(5f, 0f, 40f);
+        if(tl == null || tr == null || bl == null || br == null) return;
+        Path road = new Path();
+        road.moveTo(tl.x, tl.y);
+        road.lineTo(tr.x, tr.y);
+        road.lineTo(br.x, br.y);
+        road.lineTo(bl.x, bl.y);
+        road.close();
+        canvas.drawPath(road, roadPaint);
+
+        for(float z = 3f; z < 38f; z += 3.5f){
+            PointF l1 = project(-1.0f, 0f, z);
+            PointF l2 = project(-1.0f, 0f, z+1.5f);
+            PointF r1 = project(1.0f, 0f, z);
+            PointF r2 = project(1.0f, 0f, z+1.5f);
+            if(l1!=null && l2!=null) canvas.drawLine(l1.x, l1.y, l2.x, l2.y, linePaint);
+            if(r1!=null && r2!=null) canvas.drawLine(r1.x, r1.y, r2.x, r2.y, linePaint);
+        }
+    }
+
+    private void drawBuildings(Canvas canvas){
+        for(Building b : buildings){
+            PointF top = project(b.x, b.h, b.z);
+            PointF bottom = project(b.x, 0f, b.z + 0.5f);
+            if(top == null || bottom == null) continue;
+            float wScreen = 0.9f * pxPerUnit * camFov / (Math.max(0.1f, (b.z - camZ)));
+            canvas.drawRect(top.x - wScreen/2f, top.y, top.x + wScreen/2f, bottom.y, buildingPaint);
+        }
+    }
+
+    private void drawPlayer(Canvas canvas){
+        PointF base = project(lanes[currentLane], 0f, 0.6f);
+        if(base == null) return;
+        float scale = camFov / (0.6f - camZ);
+        float h = playerH * scale * pxPerUnit;
+        float w = playerW * scale * pxPerUnit;
+        float yTop = base.y - h - playerY * scale * pxPerUnit;
+        // body
+        canvas.drawRoundRect(base.x - w/2f, yTop, base.x + w/2f, base.y, 18f, 18f, playerPaint);
+        // head
+        float headR = w * 0.35f;
+        float headCx = base.x;
+        float headCy = yTop - headR * 1.2f;
+        canvas.drawCircle(headCx, headCy, headR, playerPaint);
+        // arms
+        float armY = yTop + h * 0.35f;
+        float armLen = w * 0.7f;
+        float armSwing = (float)Math.sin(animTime * 8f) * armLen * 0.3f;
+        canvas.drawLine(headCx - armLen, armY + armSwing, headCx + armLen, armY - armSwing, playerPaint);
+        // legs
+        float legY = base.y;
+        float legLen = h * 0.45f;
+        float legSwing = (float)Math.sin(animTime * 10f) * w * 0.25f;
+        canvas.drawLine(headCx - w*0.2f, legY, headCx - w*0.2f - legSwing, legY + legLen, playerPaint);
+        canvas.drawLine(headCx + w*0.2f, legY, headCx + w*0.2f + legSwing, legY + legLen, playerPaint);
+    }
+
+    private void drawZombies(Canvas canvas){
+        for(Zombie z : zombies){
+            PointF p = project(z.x, 0f, z.z);
+            if(p == null) continue;
+            float scale = camFov / (Math.max(0.1f, z.z - camZ));
+            float w = z.w * scale * pxPerUnit;
+            float h = z.h * scale * pxPerUnit;
+            float yTop = p.y - h;
+            if(z.bmp != null){
+                canvas.drawBitmap(z.bmp, null, new android.graphics.RectF(p.x - w/2f, yTop, p.x + w/2f, p.y), null);
+            } else {
+                canvas.drawRect(p.x - w/2f, yTop, p.x + w/2f, p.y, playerPaint);
+            }
+        }
+    }
+
+    private void drawHud(Canvas canvas){
+        canvas.drawText("Score: " + score, 32f, 68f, textPaint);
+        canvas.drawText("Best: " + best, 32f, 128f, textPaint);
+        if(!playing){
+            String msg = gameOver ? "Game Over - Tap" : "Tap to Play";
+            float tw = textPaint.measureText(msg);
+            canvas.drawText(msg, (width - tw)/2f, height * 0.45f, textPaint);
+        }
+    }
+
+    private PointF project(float x, float y, float z){
+        float relZ = z - camZ;
+        if(relZ <= 0.1f) return null;
+        float scale = camFov / relZ;
+        float sx = width * 0.5f + x * scale * pxPerUnit;
+        float sy = height * 0.65f - (y - camY) * scale * pxPerUnit;
+        return new PointF(sx, sy);
+    }
+
+    private static class Zombie { float x, z, w, h; Bitmap bmp; Zombie(float x, float z, float w, float h, Bitmap bmp){ this.x=x; this.z=z; this.w=w; this.h=h; this.bmp=bmp; } }
+    private static class Building { float x, z, w, h; Building(float x, float z, float w, float h){ this.x=x; this.z=z; this.w=w; this.h=h; } }
+}

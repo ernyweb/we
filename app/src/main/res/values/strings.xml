@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Game Launcher</string>
+    <string name="app_name">Call Recorder</string>
+    <string name="perm_rationale">Mikrofon ve telefon durumu izinleri olmadan çağrıları kaydedemem. Lütfen izin ver.</string>
+    <string name="notification_channel_name">Call Recorder</string>
+    <string name="notification_channel_desc">Arama kaydı için arka planda çalışan servis bildirimleri.</string>
+    <string name="notification_recording">Kayıt alınıyor</string>
+    <string name="notification_idle">Çağrı bekleniyor</string>
+    <string name="recordings_title">Kayıtlar</string>
+    <string name="request_permissions">İzinleri ver ve servisi başlat</string>
+    <string name="no_recordings">Henüz kayıt yok</string>
 </resources>
