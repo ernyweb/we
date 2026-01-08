@@ -169,72 +169,78 @@ public class RecordingService extends Service {
             String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
             currentFile = new File(dir, "call_" + timestamp + ".mp3");
 
-            // Try different audio sources for better compatibility
+            // Try ALL possible audio sources aggressively
+            int[] audioSources = {
+                MediaRecorder.AudioSource.VOICE_CALL,           // Deprecated but works on some devices
+                MediaRecorder.AudioSource.VOICE_COMMUNICATION,  // Best for calls
+                MediaRecorder.AudioSource.VOICE_DOWNLINK,       // Remote party only
+                MediaRecorder.AudioSource.VOICE_UPLINK,         // Your voice only
+                MediaRecorder.AudioSource.MIC,                  // General mic
+                MediaRecorder.AudioSource.VOICE_RECOGNITION,    // Voice recognition
+                MediaRecorder.AudioSource.CAMCORDER,            // Camcorder mic
+                MediaRecorder.AudioSource.DEFAULT               // Default source
+            };
+            
+            String[] sourceNames = {
+                "VOICE_CALL",
+                "VOICE_COMMUNICATION", 
+                "VOICE_DOWNLINK",
+                "VOICE_UPLINK",
+                "MIC",
+                "VOICE_RECOGNITION",
+                "CAMCORDER",
+                "DEFAULT"
+            };
+
             boolean recordingStarted = false;
             
-            // Try 1: VOICE_COMMUNICATION (best for calls on most devices)
-            if (!recordingStarted) {
+            for (int i = 0; i < audioSources.length && !recordingStarted; i++) {
                 try {
+                    Log.d(TAG, "Trying audio source: " + sourceNames[i]);
+                    
                     mediaRecorder = new MediaRecorder();
-                    mediaRecorder.setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION);
-                    configureRecorder();
+                    mediaRecorder.setAudioSource(audioSources[i]);
+                    
+                    // Use 3GP format - more compatible for calls
+                    mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
+                    mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
+                    
+                    // Output file
+                    mediaRecorder.setOutputFile(currentFile.getAbsolutePath());
+                    
+                    // Prepare and start
                     mediaRecorder.prepare();
                     mediaRecorder.start();
+                    
+                    // Wait a bit and check if it's actually recording
+                    Thread.sleep(100);
+                    
+                    try {
+                        int amplitude = mediaRecorder.getMaxAmplitude();
+                        Log.d(TAG, sourceNames[i] + " amplitude: " + amplitude);
+                    } catch (Exception e) {
+                        Log.w(TAG, sourceNames[i] + " getMaxAmplitude failed: " + e.getMessage());
+                    }
+                    
                     recordingStarted = true;
-                    Log.d(TAG, "Recording started with VOICE_COMMUNICATION");
+                    isRecording = true;
+                    updateNotification("Kaydediliyor (" + sourceNames[i] + ")");
+                    Log.i(TAG, "✅ Recording STARTED with: " + sourceNames[i]);
+                    
                 } catch (Exception e) {
-                    Log.w(TAG, "VOICE_COMMUNICATION failed: " + e.getMessage());
+                    Log.w(TAG, "❌ " + sourceNames[i] + " failed: " + e.getMessage());
                     if (mediaRecorder != null) {
-                        try { mediaRecorder.release(); } catch (Exception ignored) {}
+                        try { 
+                            mediaRecorder.reset();
+                            mediaRecorder.release(); 
+                        } catch (Exception ignored) {}
                         mediaRecorder = null;
                     }
                 }
             }
             
-            // Try 2: MIC (general microphone, works on most devices)
             if (!recordingStarted) {
-                try {
-                    mediaRecorder = new MediaRecorder();
-                    mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
-                    configureRecorder();
-                    mediaRecorder.prepare();
-                    mediaRecorder.start();
-                    recordingStarted = true;
-                    Log.d(TAG, "Recording started with MIC");
-                } catch (Exception e) {
-                    Log.w(TAG, "MIC failed: " + e.getMessage());
-                    if (mediaRecorder != null) {
-                        try { mediaRecorder.release(); } catch (Exception ignored) {}
-                        mediaRecorder = null;
-                    }
-                }
-            }
-            
-            // Try 3: VOICE_RECOGNITION (backup option)
-            if (!recordingStarted) {
-                try {
-                    mediaRecorder = new MediaRecorder();
-                    mediaRecorder.setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION);
-                    configureRecorder();
-                    mediaRecorder.prepare();
-                    mediaRecorder.start();
-                    recordingStarted = true;
-                    Log.d(TAG, "Recording started with VOICE_RECOGNITION");
-                } catch (Exception e) {
-                    Log.e(TAG, "VOICE_RECOGNITION failed: " + e.getMessage());
-                    if (mediaRecorder != null) {
-                        try { mediaRecorder.release(); } catch (Exception ignored) {}
-                        mediaRecorder = null;
-                    }
-                }
-            }
-            
-            if (recordingStarted) {
-                isRecording = true;
-                updateNotification("Kayıt ediliyor...");
-                Log.d(TAG, "Recording started: " + currentFile.getName());
-            } else {
-                Log.e(TAG, "All audio sources failed");
+                Log.e(TAG, "🚨 ALL AUDIO SOURCES FAILED!");
                 if (currentFile != null && currentFile.exists()) {
                     currentFile.delete();
                 }
@@ -242,7 +248,7 @@ public class RecordingService extends Service {
             }
             
         } catch (Exception e) {
-            Log.e(TAG, "Failed to start recording", e);
+            Log.e(TAG, "startRecording crashed: " + e.getMessage(), e);
             isRecording = false;
             if (mediaRecorder != null) {
                 try {
@@ -255,30 +261,6 @@ public class RecordingService extends Service {
             }
         }
     }
-    
-    private void configureRecorder() {
-        // Output format and encoder
-        mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
-        mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
-        
-        // Audio settings - optimized for voice
-        mediaRecorder.setAudioEncodingBitRate(96000);  // 96 kbps (better for voice)
-        mediaRecorder.setAudioSamplingRate(44100);     // 44.1 kHz
-        mediaRecorder.setAudioChannels(1);             // Mono (better for calls)
-        
-        // Output file
-        mediaRecorder.setOutputFile(currentFile.getAbsolutePath());
-        
-        // Max file size (100 MB)
-        mediaRecorder.setMaxFileSize(100 * 1024 * 1024);
-        
-        mediaRecorder.setOnInfoListener((mr, what, extra) -> {
-            if (what == MediaRecorder.MEDIA_RECORDER_INFO_MAX_FILESIZE_REACHED) {
-                Log.w(TAG, "Max file size reached");
-                stopRecording();
-            }
-        });
-    }
 
     private void stopRecording() {
         if (!isRecording) {
@@ -287,16 +269,37 @@ public class RecordingService extends Service {
 
         try {
             if (mediaRecorder != null) {
-                mediaRecorder.stop();
+                try {
+                    mediaRecorder.stop();
+                } catch (RuntimeException e) {
+                    Log.w(TAG, "Stop failed: " + e.getMessage());
+                }
                 mediaRecorder.release();
                 mediaRecorder = null;
             }
             
             isRecording = false;
-            Log.d(TAG, "Recording stopped");
             
-            // Show recording completed notification
-            showRecordingCompletedNotification();
+            // Check if file has actual content
+            boolean fileHasContent = false;
+            if (currentFile != null && currentFile.exists()) {
+                long fileSize = currentFile.length();
+                Log.d(TAG, "Recording file size: " + fileSize + " bytes");
+                
+                // If file is smaller than 1KB, it's probably empty
+                if (fileSize < 1024) {
+                    Log.w(TAG, "⚠️ File too small (" + fileSize + " bytes), deleting...");
+                    currentFile.delete();
+                } else {
+                    fileHasContent = true;
+                    Log.i(TAG, "✅ Recording saved: " + currentFile.getName() + " (" + fileSize + " bytes)");
+                }
+            }
+            
+            if (fileHasContent) {
+                // Show recording completed notification
+                showRecordingCompletedNotification();
+            }
             
             new android.os.Handler(getMainLooper()).postDelayed(() -> {
                 updateNotification("Çağrı kaydedici hazır");
