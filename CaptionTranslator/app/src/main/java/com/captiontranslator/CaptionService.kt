@@ -77,7 +77,6 @@ class CaptionService : Service() {
                 
                 internalAudioCapture = InternalAudioCaptureManager(
                     this,
-                    translator!!,
                     onTextRecognized = { text ->
                         textViewCaption?.text = text
                     },
