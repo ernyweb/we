@@ -61,7 +61,14 @@ class CaptionService : Service() {
         }
 
         showOverlay()
-        startSpeechRecognition()
+        
+        // Show "Listening..." message
+        textViewCaption?.text = "🎤 Listening for speech..."
+        
+        // Delay to show message, then start recognition
+        android.os.Handler(mainLooper).postDelayed({
+            startSpeechRecognition()
+        }, 2000)
 
         return START_STICKY
     }
@@ -161,18 +168,23 @@ class CaptionService : Service() {
     private fun startSpeechRecognition() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
             Log.e(TAG, "Speech recognition not available")
+            textViewCaption?.text = "❌ Speech recognition not available on this device"
             return
         }
+        
+        Log.d(TAG, "Speech recognition is available, creating recognizer...")
 
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
         speechRecognizer?.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
                 Log.d(TAG, "Ready for speech")
                 isListening = true
+                textViewCaption?.text = "🎤 Ready - Speak now!"
             }
 
             override fun onBeginningOfSpeech() {
                 Log.d(TAG, "Speech started")
+                textViewCaption?.text = "🗣️ Speaking detected..."
             }
 
             override fun onRmsChanged(rmsdB: Float) {}
@@ -191,14 +203,28 @@ class CaptionService : Service() {
             }
 
             override fun onError(error: Int) {
-                Log.e(TAG, "Speech recognition error: $error")
+                val errorMsg = when(error) {
+                    SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
+                    SpeechRecognizer.ERROR_CLIENT -> "Client error"
+                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "❌ No microphone permission!"
+                    SpeechRecognizer.ERROR_NETWORK -> "Network error"
+                    SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
+                    SpeechRecognizer.ERROR_NO_MATCH -> "No speech detected"
+                    SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer busy"
+                    SpeechRecognizer.ERROR_SERVER -> "Server error"
+                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech input"
+                    else -> "Unknown error"
+                }
+                Log.e(TAG, "Speech recognition error: $error - $errorMsg")
+                textViewCaption?.text = "⚠️ $errorMsg - Retrying..."
                 isListening = false
                 // Retry after delay
                 android.os.Handler(mainLooper).postDelayed({
                     if (captionView != null) {
+                        textViewCaption?.text = "🎤 Listening again..."
                         startListening()
                     }
-                }, 1000)
+                }, 3000)
             }
 
             override fun onResults(results: Bundle?) {
@@ -206,7 +232,11 @@ class CaptionService : Service() {
                 if (!matches.isNullOrEmpty()) {
                     val spokenText = matches[0]
                     Log.d(TAG, "Recognized: $spokenText")
+                    textViewCaption?.text = "📝 $spokenText"
                     translateAndDisplay(spokenText)
+                } else {
+                    Log.d(TAG, "No results found")
+                    textViewCaption?.text = "🤷 No speech detected"
                 }
             }
 
@@ -247,20 +277,36 @@ class CaptionService : Service() {
     }
 
     private fun translateAndDisplay(text: String) {
+        if (translator == null) {
+            Log.e(TAG, "Translator not initialized")
+            textViewCaption?.text = "❌ Translator not ready. Please wait..."
+            // Reinitialize
+            initializeTranslator()
+            return
+        }
+        
+        Log.d(TAG, "Translating: $text")
+        textViewCaption?.text = "⏳ Translating..."
+        
         translator?.translate(text)
             ?.addOnSuccessListener { translatedText ->
                 Log.d(TAG, "Translated: $translatedText")
-                textViewCaption?.text = translatedText
+                textViewCaption?.text = "✅ $translatedText"
                 
-                // Auto-hide after 5 seconds
+                // Auto-hide after 8 seconds (longer to read)
                 android.os.Handler(mainLooper).postDelayed({
                     textViewCaption?.text = ""
-                }, 5000)
+                }, 8000)
             }
             ?.addOnFailureListener { e ->
                 Log.e(TAG, "Translation failed", e)
                 // Show original text if translation fails
-                textViewCaption?.text = text
+                textViewCaption?.text = "⚠️ Translation failed: $text"
+                
+                // Auto-hide after 6 seconds
+                android.os.Handler(mainLooper).postDelayed({
+                    textViewCaption?.text = ""
+                }, 6000)
             }
     }
 
