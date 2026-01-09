@@ -80,8 +80,15 @@ class CaptionService : Service() {
                     translator!!,
                     onTextRecognized = { text ->
                         textViewCaption?.text = text
-                        // In future, we'll add speech-to-text conversion here
-                        // For now, just show that audio is being detected
+                    },
+                    onTranslation = { original, translated ->
+                        // Show translated text on overlay
+                        textViewCaption?.text = "✅ $translated"
+                        
+                        // Auto-hide after 8 seconds
+                        android.os.Handler(mainLooper).postDelayed({
+                            textViewCaption?.text = ""
+                        }, 8000)
                     }
                 )
                 internalAudioCapture?.startCapture(resultCode, data)

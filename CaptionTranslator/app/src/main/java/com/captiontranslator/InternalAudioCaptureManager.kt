@@ -13,6 +13,12 @@ import android.util.Log
 import androidx.annotation.RequiresApi
 import com.google.mlkit.nl.translate.Translator
 import kotlinx.coroutines.*
+import org.vosk.Model
+import org.vosk.Recognizer
+import org.vosk.android.StorageService
+import java.io.File
+import java.io.FileOutputStream
+import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -20,11 +26,15 @@ import java.nio.ByteOrder
 class InternalAudioCaptureManager(
     private val context: Context,
     private val translator: Translator,
-    private val onTextRecognized: (String) -> Unit
+    private val onTextRecognized: (String) -> Unit,
+    private val onTranslation: (String, String) -> Unit  // (original, translated)
 ) {
     private var mediaProjection: MediaProjection? = null
     private var audioRecord: AudioRecord? = null
     private var captureJob: Job? = null
+    private var recognitionJob: Job? = null
+    private var voskModel: Model? = null
+    private var voskRecognizer: Recognizer? = null
     
     companion object {
         private const val TAG = "InternalAudioCapture"
@@ -108,15 +118,17 @@ class InternalAudioCaptureManager(
                 
                 // If we have silence for a while after speech, process it
                 if (silenceCounter > 20 && audioBuffer.size > SPEECH_MIN_LENGTH) {
-                    // Convert audio to text using speech recognition
-                    // Note: Google Speech Recognition works best with microphone
-                    // For internal audio, we need to use a different approach
+                    // Convert audio buffer to WAV and recognize
+                    Log.d(TAG, "Detected audio segment: ${audioBuffer.size} samples - Processing...")
                     
-                    Log.d(TAG, "Detected audio segment: ${audioBuffer.size} samples")
+                    val audioData = audioBuffer.toShortArray()
                     
                     withContext(Dispatchers.Main) {
-                        onTextRecognized("🔊 Audio detected (${audioBuffer.size} samples)")
+                        onTextRecognized("🎧 Processing ${audioBuffer.size} samples...")
                     }
+                    
+                    // Process speech recognition
+                    processAudioToText(audioData)
                     
                     audioBuffer.clear()
                     silenceCounter = 0
@@ -127,8 +139,242 @@ class InternalAudioCaptureManager(
         }
     }
     
+    private suspend fun processAudioToText(audioData: ShortArray) {
+        try {
+            // Save audio to temporary WAV file
+            val wavFile = File(context.cacheDir, "temp_audio_${System.currentTimeMillis()}.wav")
+            saveAsWav(audioData, wavFile)
+            
+            Log.d(TAG, "WAV file saved: ${wavFile.absolutePath}, size: ${wavFile.length()} bytes")
+            
+            withContext(Dispatchers.Main) {
+                onTextRecognized("🎤 Recognizing speech...")
+            }
+            
+            // Use Google Speech API (simplified version)
+            // In production, you'd use Vosk or Google Cloud Speech
+            recognizeAudioFile(wavFile)
+            
+            // Clean up
+            wavFile.delete()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error processing audio to text", e)
+            withContext(Dispatchers.Main) {
+                onTextRecognized("⚠️ Speech recognition error: ${e.message}")
+            }
+        }
+    }
+    
+    private suspend fun recognizeAudioFile(wavFile: File) {
+        withContext(Dispatchers.IO) {
+            try {
+                // Initialize Vosk if not already done
+                if (voskModel == null) {
+                    initializeVosk()
+                }
+                
+                if (voskRecognizer == null) {
+                    Log.e(TAG, "Vosk recognizer not initialized")
+                    withContext(Dispatchers.Main) {
+                        onTextRecognized("⚠️ Speech recognizer not ready")
+                    }
+                    return@withContext
+                }
+                
+                // Read WAV file (skip 44-byte header)
+                val audioData = wavFile.readBytes().copyOfRange(44, wavFile.readBytes().size)
+                
+                // Process audio with Vosk
+                voskRecognizer?.acceptWaveForm(audioData, audioData.size)
+                val result = voskRecognizer?.result
+                
+                Log.d(TAG, "Vosk result: $result")
+                
+                // Parse JSON result
+                val recognizedText = parseVoskResult(result ?: "")
+                
+                if (recognizedText.isNotEmpty()) {
+                    Log.d(TAG, "Recognized text: $recognizedText")
+                    
+                    withContext(Dispatchers.Main) {
+                        onTextRecognized("📝 $recognizedText")
+                    }
+                    
+                    // Translate the text
+                    translateText(recognizedText)
+                } else {
+                    Log.d(TAG, "No speech detected in audio")
+                    withContext(Dispatchers.Main) {
+                        onTextRecognized("🔇 No speech detected")
+                    }
+                }
+                
+                // Reset recognizer for next use
+                voskRecognizer?.reset()
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Error recognizing audio", e)
+                withContext(Dispatchers.Main) {
+                    onTextRecognized("⚠️ Recognition error: ${e.message}")
+                }
+            }
+        }
+    }
+    
+    private fun parseVoskResult(jsonResult: String): String {
+        return try {
+            // Simple JSON parsing - extract "text" field
+            val textStart = jsonResult.indexOf("\"text\" : \"")
+            if (textStart == -1) return ""
+            
+            val textContentStart = textStart + "\"text\" : \"".length
+            val textContentEnd = jsonResult.indexOf("\"", textContentStart)
+            
+            if (textContentEnd == -1) return ""
+            
+            jsonResult.substring(textContentStart, textContentEnd).trim()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error parsing Vosk result", e)
+            ""
+        }
+    }
+    
+    private fun initializeVosk() {
+        try {
+            Log.d(TAG, "Initializing Vosk model...")
+            
+            // Unpack model from assets if needed
+            val modelPath = File(context.filesDir, "vosk-model-en")
+            if (!modelPath.exists()) {
+                copyAssetFolder("vosk-model-en", modelPath.absolutePath)
+            }
+            
+            voskModel = Model(modelPath.absolutePath)
+            voskRecognizer = Recognizer(voskModel, SAMPLE_RATE.toFloat())
+            
+            Log.d(TAG, "Vosk initialized successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initialize Vosk", e)
+        }
+    }
+    
+    private fun copyAssetFolder(srcName: String, dstName: String) {
+        try {
+            val assetManager = context.assets
+            val files = assetManager.list(srcName) ?: emptyArray()
+            
+            val outDir = File(dstName)
+            if (!outDir.exists()) {
+                outDir.mkdirs()
+            }
+            
+            for (filename in files) {
+                val src = "$srcName/$filename"
+                val dst = "$dstName/$filename"
+                
+                if (assetManager.list(src)?.isNotEmpty() == true) {
+                    // It's a directory
+                    copyAssetFolder(src, dst)
+                } else {
+                    // It's a file
+                    copyAssetFile(src, dst)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error copying asset folder", e)
+        }
+    }
+    
+    private fun copyAssetFile(srcName: String, dstName: String) {
+        try {
+            val inStream: InputStream = context.assets.open(srcName)
+            val outFile = File(dstName)
+            val outStream = FileOutputStream(outFile)
+            
+            val buffer = ByteArray(4096)
+            var length: Int
+            while (inStream.read(buffer).also { length = it } > 0) {
+                outStream.write(buffer, 0, length)
+            }
+            
+            inStream.close()
+            outStream.flush()
+            outStream.close()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error copying asset file: $srcName", e)
+        }
+    }
+    
+    private suspend fun translateText(text: String) {
+        withContext(Dispatchers.Main) {
+            onTextRecognized("⏳ Translating...")
+        }
+        
+        translator.translate(text)
+            .addOnSuccessListener { translatedText ->
+                Log.d(TAG, "Translation: $text → $translatedText")
+                onTranslation(text, translatedText)
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Translation failed", e)
+                onTranslation(text, "⚠️ Translation failed")
+            }
+    }
+    
+    private fun saveAsWav(audioData: ShortArray, outputFile: File) {
+        val channels = 1
+        val byteRate = SAMPLE_RATE * channels * 2 // 16-bit = 2 bytes
+        
+        FileOutputStream(outputFile).use { fos ->
+            // WAV header
+            fos.write("RIFF".toByteArray())
+            fos.write(intToByteArray(36 + audioData.size * 2), 0, 4)
+            fos.write("WAVE".toByteArray())
+            
+            // fmt chunk
+            fos.write("fmt ".toByteArray())
+            fos.write(intToByteArray(16), 0, 4) // chunk size
+            fos.write(shortToByteArray(1), 0, 2) // audio format (PCM)
+            fos.write(shortToByteArray(channels.toShort()), 0, 2)
+            fos.write(intToByteArray(SAMPLE_RATE), 0, 4)
+            fos.write(intToByteArray(byteRate), 0, 4)
+            fos.write(shortToByteArray((channels * 2).toShort()), 0, 2) // block align
+            fos.write(shortToByteArray(16), 0, 2) // bits per sample
+            
+            // data chunk
+            fos.write("data".toByteArray())
+            fos.write(intToByteArray(audioData.size * 2), 0, 4)
+            
+            // audio data
+            val buffer = ByteBuffer.allocate(audioData.size * 2)
+            buffer.order(ByteOrder.LITTLE_ENDIAN)
+            for (sample in audioData) {
+                buffer.putShort(sample)
+            }
+            fos.write(buffer.array())
+        }
+    }
+    
+    private fun intToByteArray(value: Int): ByteArray {
+        return byteArrayOf(
+            (value and 0xFF).toByte(),
+            ((value shr 8) and 0xFF).toByte(),
+            ((value shr 16) and 0xFF).toByte(),
+            ((value shr 24) and 0xFF).toByte()
+        )
+    }
+    
+    private fun shortToByteArray(value: Short): ByteArray {
+        return byteArrayOf(
+            (value.toInt() and 0xFF).toByte(),
+            ((value.toInt() shr 8) and 0xFF).toByte()
+        )
+    }
+    
     fun stopCapture() {
         captureJob?.cancel()
+        recognitionJob?.cancel()
         audioRecord?.stop()
         audioRecord?.release()
         audioRecord = null

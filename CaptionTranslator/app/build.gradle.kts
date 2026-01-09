@@ -39,10 +39,11 @@ dependencies {
     // ML Kit Translation
     implementation("com.google.mlkit:translate:17.0.1")
     
-    // Speech Recognition
-    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.0")
-    
     // Coroutines for async audio processing
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    
+    // Vosk offline speech recognition
+    implementation("com.alphacephei:vosk-android:0.3.32")
+    implementation("net.java.dev.jna:jna:5.13.0@aar")
 }
