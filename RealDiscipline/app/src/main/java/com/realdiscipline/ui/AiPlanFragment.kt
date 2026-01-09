@@ -6,8 +6,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.*
 import androidx.fragment.app.Fragment
-import com.google.ai.client.generativeai.GenerativeModel
 import com.realdiscipline.R
+import com.realdiscipline.ai.LocalAI
 import kotlinx.coroutines.*
 
 class AiPlanFragment : Fragment() {
@@ -55,83 +55,48 @@ class AiPlanFragment : Fragment() {
     }
     
     private fun generateAiPlan() {
-        val age = etAge.text.toString()
-        val weight = etWeight.text.toString()
-        val height = etHeight.text.toString()
+        val ageStr = etAge.text.toString()
+        val weightStr = etWeight.text.toString()
+        val heightStr = etHeight.text.toString()
         val goal = etGoal.text.toString()
         val duration = spinnerDuration.selectedItem.toString()
         
-        if (age.isEmpty() || weight.isEmpty() || goal.isEmpty()) {
+        if (ageStr.isEmpty() || weightStr.isEmpty() || goal.isEmpty()) {
             Toast.makeText(requireContext(), "Lütfen tüm alanları doldurun", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        val age = ageStr.toIntOrNull() ?: 0
+        val weight = weightStr.toFloatOrNull() ?: 0f
+        val height = heightStr.toFloatOrNull() ?: 0f
+        
+        if (age <= 0 || weight <= 0) {
+            Toast.makeText(requireContext(), "Lütfen geçerli değerler girin", Toast.LENGTH_SHORT).show()
             return
         }
         
         progressBar.visibility = View.VISIBLE
         btnGenerate.isEnabled = false
-        tvPlan.text = "AI plan oluşturuluyor..."
+        tvPlan.text = "🤖 Kişiselleştirilmiş planınız oluşturuluyor..."
         
         CoroutineScope(Dispatchers.Main).launch {
             try {
                 val plan = withContext(Dispatchers.IO) {
-                    generatePlanWithGemini(age, weight, height, goal, duration)
+                    // Simulate AI thinking time
+                    delay(1500)
+                    LocalAI.generateDisciplinePlan(age, weight, height, goal, duration)
                 }
                 
                 tvPlan.text = plan
+                Toast.makeText(requireContext(), "✅ Plan başarıyla oluşturuldu!", Toast.LENGTH_SHORT).show()
                 
             } catch (e: Exception) {
-                tvPlan.text = "Plan oluşturma hatası: ${e.message}"
+                tvPlan.text = "❌ Plan oluşturma hatası: ${e.message}"
+                Toast.makeText(requireContext(), "Hata oluştu", Toast.LENGTH_SHORT).show()
             } finally {
                 progressBar.visibility = View.GONE
                 btnGenerate.isEnabled = true
             }
         }
-    }
-    
-    private suspend fun generatePlanWithGemini(
-        age: String,
-        weight: String,
-        height: String,
-        goal: String,
-        duration: String
-    ): String {
-        val generativeModel = GenerativeModel(
-            modelName = "gemini-pro",
-            apiKey = "YOUR_API_KEY_HERE" // TODO: Add your Gemini API key
-        )
-        
-        val prompt = """
-            Kişisel Bilgiler:
-            - Yaş: $age
-            - Kilo: $weight kg
-            - Boy: $height cm
-            - Hedef: $goal
-            - Süre: $duration
-            
-            Lütfen bu kişi için detaylı bir disiplin ve habit tracking planı oluştur:
-            
-            1. GÜNLÜK RUTINLER (Daily Habits):
-               - Sabah rutini
-               - Akşam rutini
-               - Egzersiz programı
-               - Beslenme önerileri
-            
-            2. HAFTALIK HEDEFLER:
-               - Her hafta için spesifik hedefler
-               - Takip edilecek metrikler
-            
-            3. AYLIK İLERLEME:
-               - Aylık kilometre taşları
-               - Başarı kriterleri
-            
-            4. TODO LİSTESİ:
-               - Hemen yapılacaklar
-               - Bu hafta yapılacaklar
-               - Bu ay yapılacaklar
-            
-            Planı Türkçe, detaylı ve motive edici bir şekilde yaz.
-        """.trimIndent()
-        
-        val response = generativeModel.generateContent(prompt)
-        return response.text ?: "Plan oluşturulamadı"
     }
 }

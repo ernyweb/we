@@ -59,7 +59,4 @@ dependencies {
     
     // Work Manager (for notifications)
     implementation("androidx.work:work-runtime-ktx:2.8.1")
-    
-    // Google AI (Gemini)
-    implementation("com.google.ai.client.generativeai:generativeai:0.1.1")
 }
