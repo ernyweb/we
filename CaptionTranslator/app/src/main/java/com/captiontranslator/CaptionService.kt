@@ -34,6 +34,7 @@ class CaptionService : Service() {
     private var translator: Translator? = null
     private var speechRecognizer: SpeechRecognizer? = null
     private var isListening = false
+    private var internalAudioCapture: InternalAudioCaptureManager? = null
 
     companion object {
         private const val TAG = "CaptionService"
@@ -62,13 +63,39 @@ class CaptionService : Service() {
 
         showOverlay()
         
-        // Show "Listening..." message
-        textViewCaption?.text = "🎤 Listening for speech..."
+        // Check audio source preference
+        val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
+        val audioSource = prefs.getString("audio_source", "microphone") ?: "microphone"
         
-        // Delay to show message, then start recognition
-        android.os.Handler(mainLooper).postDelayed({
-            startSpeechRecognition()
-        }, 2000)
+        if (audioSource == "internal" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Internal audio mode
+            val resultCode = intent?.getIntExtra("media_projection_result_code", 0) ?: 0
+            val data = intent?.getParcelableExtra<Intent>("media_projection_data")
+            
+            if (data != null && resultCode != 0) {
+                textViewCaption?.text = "🔊 Capturing internal audio..."
+                
+                internalAudioCapture = InternalAudioCaptureManager(
+                    this,
+                    translator!!,
+                    onTextRecognized = { text ->
+                        textViewCaption?.text = text
+                        // In future, we'll add speech-to-text conversion here
+                        // For now, just show that audio is being detected
+                    }
+                )
+                internalAudioCapture?.startCapture(resultCode, data)
+            } else {
+                textViewCaption?.text = "❌ Media projection data missing"
+            }
+        } else {
+            // Microphone mode (default)
+            textViewCaption?.text = "🎤 Listening for speech..."
+            
+            android.os.Handler(mainLooper).postDelayed({
+                startSpeechRecognition()
+            }, 2000)
+        }
 
         return START_STICKY
     }
@@ -338,6 +365,7 @@ class CaptionService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         speechRecognizer?.destroy()
+        internalAudioCapture?.stopCapture()
         translator?.close()
         captionView?.let {
             try {

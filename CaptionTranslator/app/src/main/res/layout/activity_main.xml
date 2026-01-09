@@ -74,6 +74,72 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- Audio Source Selection -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardElevation="4dp"
+            app:cardCornerRadius="12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🔊 Audio Source"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="16dp" />
+
+                <RadioGroup
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <RadioButton
+                        android:id="@+id/radioMicrophone"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="🎤 Microphone (for speaking)"
+                        android:textSize="16sp"
+                        android:padding="12dp"
+                        android:checked="true" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="• Best for: Live conversations, calls\n• Captures: Your voice and nearby sounds"
+                        android:textSize="12sp"
+                        android:textColor="#666666"
+                        android:paddingStart="48dp"
+                        android:paddingEnd="12dp"
+                        android:paddingBottom="8dp" />
+
+                    <RadioButton
+                        android:id="@+id/radioInternalAudio"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="🔊 Internal Audio (for videos) 🆕"
+                        android:textSize="16sp"
+                        android:padding="12dp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="• Best for: YouTube, Netflix, games\n• Captures: Video/app audio directly\n• Requires: Android 10+ and permission"
+                        android:textSize="12sp"
+                        android:textColor="#666666"
+                        android:paddingStart="48dp"
+                        android:paddingEnd="12dp" />
+                </RadioGroup>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
         <!-- Language Settings -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"

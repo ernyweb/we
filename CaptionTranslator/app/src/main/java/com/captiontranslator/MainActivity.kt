@@ -1,8 +1,10 @@
 package com.captiontranslator
 
 import android.Manifest
+import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -22,9 +24,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var seekBarTextSize: SeekBar
     private lateinit var textViewTextSize: TextView
     private lateinit var btnTestCaption: Button
+    private lateinit var radioMicrophone: RadioButton
+    private lateinit var radioInternalAudio: RadioButton
 
     private val OVERLAY_PERMISSION_REQUEST_CODE = 100
     private val AUDIO_PERMISSION_REQUEST_CODE = 101
+    private val MEDIA_PROJECTION_REQUEST_CODE = 102
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,6 +48,17 @@ class MainActivity : AppCompatActivity() {
         seekBarTextSize = findViewById(R.id.seekBarTextSize)
         textViewTextSize = findViewById(R.id.textViewTextSize)
         btnTestCaption = findViewById(R.id.btnTestCaption)
+        radioMicrophone = findViewById(R.id.radioMicrophone)
+        radioInternalAudio = findViewById(R.id.radioInternalAudio)
+        
+        // Load saved audio source preference
+        val audioSource = getSharedPreferences("settings", MODE_PRIVATE)
+            .getString("audio_source", "microphone") ?: "microphone"
+        
+        when (audioSource) {
+            "microphone" -> radioMicrophone.isChecked = true
+            "internal" -> radioInternalAudio.isChecked = true
+        }
     }
 
     private fun setupLanguageSpinners() {
@@ -100,13 +116,44 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupListeners() {
+        // Audio source selection
+        radioMicrophone.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                getSharedPreferences("settings", MODE_PRIVATE).edit()
+                    .putString("audio_source", "microphone")
+                    .apply()
+                Toast.makeText(this, "🎤 Microphone mode (for speaking)", Toast.LENGTH_SHORT).show()
+            }
+        }
+        
+        radioInternalAudio.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    getSharedPreferences("settings", MODE_PRIVATE).edit()
+                        .putString("audio_source", "internal")
+                        .apply()
+                    Toast.makeText(this, "🔊 Internal audio mode (for YouTube/videos)", Toast.LENGTH_SHORT).show()
+                } else {
+                    radioMicrophone.isChecked = true
+                    Toast.makeText(this, "Internal audio requires Android 10+", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        
         toggleService.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
-                if (hasAllPermissions()) {
-                    startCaptionService()
+                val audioSource = getSharedPreferences("settings", MODE_PRIVATE)
+                    .getString("audio_source", "microphone") ?: "microphone"
+                
+                if (audioSource == "internal" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    requestMediaProjection()
                 } else {
-                    toggleService.isChecked = false
-                    checkPermissions()
+                    if (hasAllPermissions()) {
+                        startCaptionService()
+                    } else {
+                        toggleService.isChecked = false
+                        checkPermissions()
+                    }
                 }
             } else {
                 stopCaptionService()
@@ -175,6 +222,42 @@ class MainActivity : AppCompatActivity() {
     private fun stopCaptionService() {
         stopService(Intent(this, CaptionService::class.java))
         Toast.makeText(this, "Caption service stopped", Toast.LENGTH_SHORT).show()
+    }
+    
+    private fun requestMediaProjection() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            val mediaProjectionManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+            startActivityForResult(mediaProjectionManager.createScreenCaptureIntent(), MEDIA_PROJECTION_REQUEST_CODE)
+        }
+    }
+    
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        
+        if (requestCode == MEDIA_PROJECTION_REQUEST_CODE) {
+            if (resultCode == Activity.RESULT_OK && data != null) {
+                // Save the result for CaptionService
+                getSharedPreferences("settings", MODE_PRIVATE).edit()
+                    .putInt("media_projection_result_code", resultCode)
+                    .apply()
+                
+                // Start service with projection data
+                val intent = Intent(this, CaptionService::class.java)
+                intent.putExtra("media_projection_result_code", resultCode)
+                intent.putExtra("media_projection_data", data)
+                
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(intent)
+                } else {
+                    startService(intent)
+                }
+                
+                Toast.makeText(this, "Internal audio capture started!", Toast.LENGTH_SHORT).show()
+            } else {
+                toggleService.isChecked = false
+                Toast.makeText(this, "Screen capture permission denied", Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
