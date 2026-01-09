@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/nav_habits"
+        android:icon="@android:drawable/ic_menu_agenda"
+        android:title="Habits" />
+    <item
+        android:id="@+id/nav_todos"
+        android:icon="@android:drawable/ic_menu_edit"
+        android:title="To-Do" />
+    <item
+        android:id="@+id/nav_progress"
+        android:icon="@android:drawable/ic_menu_myplaces"
+        android:title="Progress" />
+    <item
+        android:id="@+id/nav_ai"
+        android:icon="@android:drawable/ic_menu_info_details"
+        android:title="AI Plan" />
+</menu>
