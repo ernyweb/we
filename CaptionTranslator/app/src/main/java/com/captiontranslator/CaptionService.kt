@@ -83,7 +83,7 @@ class CaptionService : Service() {
                     },
                     onTranslation = { original, translated ->
                         // Show translated text on overlay
-                        textViewCaption?.text = "✅ $translated"
+                        textViewCaption?.text = translated
                         
                         // Auto-hide after 8 seconds
                         android.os.Handler(mainLooper).postDelayed({

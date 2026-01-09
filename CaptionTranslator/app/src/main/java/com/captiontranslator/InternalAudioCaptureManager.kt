@@ -147,12 +147,7 @@ class InternalAudioCaptureManager(
             
             Log.d(TAG, "WAV file saved: ${wavFile.absolutePath}, size: ${wavFile.length()} bytes")
             
-            withContext(Dispatchers.Main) {
-                onTextRecognized("🎤 Recognizing speech...")
-            }
-            
-            // Use Google Speech API (simplified version)
-            // In production, you'd use Vosk or Google Cloud Speech
+            // Use Vosk for speech recognition
             recognizeAudioFile(wavFile)
             
             // Clean up
@@ -160,9 +155,6 @@ class InternalAudioCaptureManager(
             
         } catch (e: Exception) {
             Log.e(TAG, "Error processing audio to text", e)
-            withContext(Dispatchers.Main) {
-                onTextRecognized("⚠️ Speech recognition error: ${e.message}")
-            }
         }
     }
     
@@ -176,9 +168,6 @@ class InternalAudioCaptureManager(
                 
                 if (voskRecognizer == null) {
                     Log.e(TAG, "Vosk recognizer not initialized")
-                    withContext(Dispatchers.Main) {
-                        onTextRecognized("⚠️ Speech recognizer not ready")
-                    }
                     return@withContext
                 }
                 
@@ -197,17 +186,10 @@ class InternalAudioCaptureManager(
                 if (recognizedText.isNotEmpty()) {
                     Log.d(TAG, "Recognized text: $recognizedText")
                     
-                    withContext(Dispatchers.Main) {
-                        onTextRecognized("📝 $recognizedText")
-                    }
-                    
                     // Translate the text
                     translateText(recognizedText)
                 } else {
                     Log.d(TAG, "No speech detected in audio")
-                    withContext(Dispatchers.Main) {
-                        onTextRecognized("🔇 No speech detected")
-                    }
                 }
                 
                 // Reset recognizer for next use
@@ -215,9 +197,6 @@ class InternalAudioCaptureManager(
                 
             } catch (e: Exception) {
                 Log.e(TAG, "Error recognizing audio", e)
-                withContext(Dispatchers.Main) {
-                    onTextRecognized("⚠️ Recognition error: ${e.message}")
-                }
             }
         }
     }
@@ -307,10 +286,6 @@ class InternalAudioCaptureManager(
     }
     
     private suspend fun translateText(text: String) {
-        withContext(Dispatchers.Main) {
-            onTextRecognized("⏳ Translating...")
-        }
-        
         translator.translate(text)
             .addOnSuccessListener { translatedText ->
                 Log.d(TAG, "Translation: $text → $translatedText")
