@@ -42,4 +42,8 @@ dependencies {
     // Coroutines for async audio processing
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    
+    // Vosk offline speech recognition
+    implementation("com.alphacephei:vosk-android:0.3.32")
+    implementation("net.java.dev.jna:jna:5.13.0@aar")
 }
