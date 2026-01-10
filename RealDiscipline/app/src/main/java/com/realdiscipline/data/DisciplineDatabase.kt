@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [Habit::class, HabitLog::class, Todo::class, UserProfile::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class DisciplineDatabase : RoomDatabase() {
@@ -25,7 +25,9 @@ abstract class DisciplineDatabase : RoomDatabase() {
                     context.applicationContext,
                     DisciplineDatabase::class.java,
                     "discipline_database"
-                ).build()
+                )
+                .fallbackToDestructiveMigration()
+                .build()
                 INSTANCE = instance
                 instance
             }
