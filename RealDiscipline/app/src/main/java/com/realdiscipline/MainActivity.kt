@@ -8,11 +8,13 @@ import com.realdiscipline.ui.*
 
 class MainActivity : AppCompatActivity() {
     
+    private lateinit var bottomNav: BottomNavigationView
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         
-        val bottomNav = findViewById<BottomNavigationView>(R.id.bottom_navigation)
+        bottomNav = findViewById(R.id.bottom_navigation)
         
         // Default fragment
         if (savedInstanceState == null) {
@@ -46,5 +48,9 @@ class MainActivity : AppCompatActivity() {
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, fragment)
             .commit()
+    }
+    
+    fun switchToTodoTab() {
+        bottomNav.selectedItemId = R.id.nav_todos
     }
 }

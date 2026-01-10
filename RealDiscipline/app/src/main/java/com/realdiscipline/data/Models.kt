@@ -36,7 +36,12 @@ data class Todo(
     val category: String = "General",
     val priority: Int = 1, // 1=Low, 2=Medium, 3=High
     val dueDate: String = "", // YYYY-MM-DD
+    val dueTime: String = "", // HH:mm
+    val repeatType: String = "None", // None, Daily, Weekly, Monthly
+    val repeatDays: String = "", // For weekly: "Mon,Wed,Fri"
     val completed: Boolean = false,
+    val completedAt: Long = 0,
+    val fromAiPlan: Boolean = false,
     val createdAt: Long = System.currentTimeMillis()
 )
 

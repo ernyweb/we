@@ -1,22 +1,66 @@
 package com.realdiscipline.ai
 
+import com.realdiscipline.data.Todo
 import kotlin.math.pow
+import java.text.SimpleDateFormat
+import java.util.*
 
-class LocalAI {
+data class DisciplinePlan(
+    val planText: String,
+    val todos: List<Todo>,
+    val summary: PlanSummary
+)
+
+data class PlanSummary(
+    val age: Int,
+    val weight: Float,
+    val height: Float,
+    val bmi: Float,
+    val bmiCategory: String,
+    val goalType: GoalType,
+    val goal: String,
+    val weeks: Int,
+    val dailyCalories: Int,
+    val dailyProtein: Int,
+    val exerciseDaysPerWeek: Int
+)
+
+enum class GoalType {
+    WEIGHT_LOSS,
+    MUSCLE_GAIN,
+    FITNESS,
+    ROUTINE,
+    STUDY,
+    GENERAL
+}
+
+object LocalAI {
     
-    companion object {
-        fun generateDisciplinePlan(
-            age: Int,
-            weight: Float,
-            height: Float,
-            goal: String,
-            duration: String
-        ): String {
+    fun generateDisciplinePlan(
+        age: Int,
+        weight: Float,
+        height: Float,
+        goal: String,
+        duration: String
+    ): DisciplinePlan {
             val bmi = calculateBMI(weight, height)
+            val bmiCategory = getBMICategory(bmi)
             val goalType = analyzeGoal(goal)
             val weeks = parseDuration(duration)
             
-            return buildPlan(age, weight, height, bmi, goalType, goal, weeks)
+            val calories = calculateDailyCalories(age, weight, height, goalType)
+            val protein = calculateDailyProtein(weight, goalType)
+            val exerciseDays = getExerciseDaysPerWeek(goalType)
+            
+            val summary = PlanSummary(
+                age, weight, height, bmi, bmiCategory, goalType, goal, weeks,
+                calories, protein, exerciseDays
+            )
+            
+            val planText = buildPlan(age, weight, height, bmi, goalType, goal, weeks, calories, protein)
+            val todos = generateTodoList(goalType, summary)
+            
+            return DisciplinePlan(planText, todos, summary)
         }
         
         private fun calculateBMI(weight: Float, height: Float): Float {
@@ -47,6 +91,37 @@ class LocalAI {
             }
         }
         
+        private fun calculateDailyCalories(age: Int, weight: Float, height: Float, goalType: GoalType): Int {
+            // BMR calculation (Mifflin-St Jeor)
+            val bmr = 10 * weight + 6.25 * height - 5 * age + 5
+            val tdee = (bmr * 1.55).toInt() // Moderate activity
+            
+            return when (goalType) {
+                GoalType.WEIGHT_LOSS -> (tdee * 0.8).toInt() // -20% deficit
+                GoalType.MUSCLE_GAIN -> (tdee * 1.1).toInt() // +10% surplus
+                else -> tdee
+            }
+        }
+        
+        private fun calculateDailyProtein(weight: Float, goalType: GoalType): Int {
+            val multiplier = when (goalType) {
+                GoalType.WEIGHT_LOSS -> 1.6
+                GoalType.MUSCLE_GAIN -> 2.0
+                GoalType.FITNESS -> 1.4
+                else -> 1.0
+            }
+            return (weight * multiplier).toInt()
+        }
+        
+        private fun getExerciseDaysPerWeek(goalType: GoalType): Int {
+            return when (goalType) {
+                GoalType.WEIGHT_LOSS, GoalType.MUSCLE_GAIN -> 6
+                GoalType.FITNESS -> 5
+                GoalType.ROUTINE -> 3
+                else -> 4
+            }
+        }
+        
         private fun buildPlan(
             age: Int,
             weight: Float,
@@ -54,7 +129,9 @@ class LocalAI {
             bmi: Float,
             goalType: GoalType,
             goal: String,
-            weeks: Int
+            weeks: Int,
+            calories: Int,
+            protein: Int
         ): String {
             val sb = StringBuilder()
             
@@ -73,7 +150,7 @@ class LocalAI {
             sb.append("📅 GÜNLÜK RUTİNLER\n")
             sb.append("═══════════════════════════════\n\n")
             
-            sb.append(getDailyRoutine(goalType, age))
+            sb.append(getDailyRoutine(goalType, age, calories, protein))
             
             // Weekly Goals
             sb.append("\n═══════════════════════════════\n")
@@ -112,7 +189,7 @@ class LocalAI {
             }
         }
         
-        private fun getDailyRoutine(goalType: GoalType, age: Int): String {
+        private fun getDailyRoutine(goalType: GoalType, age: Int, calories: Int, protein: Int): String {
             val sb = StringBuilder()
             
             // Morning Routine
@@ -129,7 +206,38 @@ class LocalAI {
             
             // Nutrition
             sb.append("🥗 BESLENME ÖNERİLERİ:\n")
-            sb.append(getNutritionPlan(goalType))
+            sb.append("• Günlük kalori: ~$calories kcal\n")
+            sb.append("• Protein: ${protein}g/gün\n")
+            when (goalType) {
+                GoalType.WEIGHT_LOSS -> {
+                    sb.append("• Kahvaltı: Yumurta + sebze + tam tahıl\n")
+                    sb.append("• Ara: Meyve veya kuruyemiş (az)\n")
+                    sb.append("• Öğle: Izgara tavuk/balık + salata + bulgur\n")
+                    sb.append("• Ara: Yoğurt veya protein bar\n")
+                    sb.append("• Akşam: Sebze ağırlıklı + az karbonhidrat\n")
+                    sb.append("• KAÇIN: Şeker, fast food, işlenmiş gıda\n")
+                }
+                GoalType.MUSCLE_GAIN -> {
+                    sb.append("• Kahvaltı: 3-4 yumurta + yulaf + muz\n")
+                    sb.append("• Ara: Protein shake + kuruyemiş\n")
+                    sb.append("• Öğle: 200g et + pilav + sebze\n")
+                    sb.append("• Ara: Yoğurt + bal + fıstık ezmesi\n")
+                    sb.append("• Akşam: Balık/tavuk + patates + salata\n")
+                    sb.append("• Gece: Kazeın protein veya süt\n")
+                }
+                GoalType.FITNESS -> {
+                    sb.append("• Dengeli öğünler: 40% karb, 30% protein, 30% yağ\n")
+                    sb.append("• Bol su: 2.5-3L/gün\n")
+                    sb.append("• Çeşitli sebze ve meyve\n")
+                    sb.append("• İşlenmiş gıdalardan kaçın\n")
+                }
+                else -> {
+                    sb.append("• Düzenli 3 ana + 2 ara öğün\n")
+                    sb.append("• Su: 2-3L/gün\n")
+                    sb.append("• Dengeli beslenme\n")
+                    sb.append("• Az işlenmiş, doğal gıdalar\n")
+                }
+            }
             sb.append("\n")
             
             // Evening Routine
@@ -357,14 +465,221 @@ class LocalAI {
                     "\"Başarı = Disiplin × Tutarlılık. Yolculuğunu sev! 🚀\""
             }
         }
-    }
-    
-    enum class GoalType {
-        WEIGHT_LOSS,
-        MUSCLE_GAIN,
-        FITNESS,
-        ROUTINE,
-        STUDY,
-        GENERAL
-    }
+        
+        // Todo List Generation
+        private fun generateTodoList(goalType: GoalType, summary: PlanSummary): List<Todo> {
+            val todos = mutableListOf<Todo>()
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+            val today = Calendar.getInstance()
+            
+            // BUGÜN - High Priority
+            todos.add(Todo(
+                title = "Başlangıç ölçülerini kaydet",
+                description = "Kilo: ${summary.weight}kg, Boy: ${summary.height}cm, BMI: ${String.format("%.1f", summary.bmi)}",
+                category = "Setup",
+                priority = 3,
+                dueDate = dateFormat.format(today.time),
+                dueTime = "09:00",
+                repeatType = "None",
+                fromAiPlan = true
+            ))
+            
+            todos.add(Todo(
+                title = "İlk sabah rutinini tamamla",
+                description = "2 bardak su + ${getMorningExercise(goalType)}",
+                category = "Morning",
+                priority = 3,
+                dueDate = dateFormat.format(today.time),
+                dueTime = "06:30",
+                repeatType = "Daily",
+                fromAiPlan = true
+            ))
+            
+            todos.add(Todo(
+                title = "Günlük kalori hedefini belirle",
+                description = "Hedef: ${summary.dailyCalories} kcal, Protein: ${summary.dailyProtein}g",
+                category = "Nutrition",
+                priority = 3,
+                dueDate = dateFormat.format(today.time),
+                dueTime = "08:00",
+                repeatType = "None",
+                fromAiPlan = true
+            ))
+            
+            // Goal-specific today tasks
+            when (goalType) {
+                GoalType.WEIGHT_LOSS -> {
+                    todos.add(Todo(
+                        title = "Mutfağı temizle (şeker/işlenmiş gıda)",
+                        description = "Sağlıksız gıdaları ortadan kaldır",
+                        category = "Setup",
+                        priority = 3,
+                        dueDate = dateFormat.format(today.time),
+                        fromAiPlan = true
+                    ))
+                    todos.add(Todo(
+                        title = "Kalori sayma uygulaması kur",
+                        description = "MyFitnessPal veya benzeri",
+                        category = "Setup",
+                        priority = 2,
+                        dueDate = dateFormat.format(today.time),
+                        fromAiPlan = true
+                    ))
+                }
+                GoalType.MUSCLE_GAIN -> {
+                    todos.add(Todo(
+                        title = "Spor salonu araştır/kayıt ol",
+                        description = "En yakın uygun spor salonunu bul",
+                        category = "Setup",
+                        priority = 3,
+                        dueDate = dateFormat.format(today.time),
+                        fromAiPlan = true
+                    ))
+                    todos.add(Todo(
+                        title = "Protein tozu/besin desteği araştır",
+                        description = "İhtiyaçlarına uygun ürünleri belirle (isteğe bağlı)",
+                        category = "Nutrition",
+                        priority = 2,
+                        dueDate = dateFormat.format(today.time),
+                        fromAiPlan = true
+                    ))
+                }
+                else -> {
+                    todos.add(Todo(
+                        title = "Hedeflerini not al ve görünür yere as",
+                        description = "Hedef: ${summary.goal}",
+                        category = "Setup",
+                        priority = 2,
+                        dueDate = dateFormat.format(today.time),
+                        fromAiPlan = true
+                    ))
+                }
+            }
+            
+            // Daily recurring tasks
+            todos.add(Todo(
+                title = "Su tüketimini takip et (2-3L)",
+                description = "Her saat 1 bardak su",
+                category = "Health",
+                priority = 2,
+                dueDate = dateFormat.format(today.time),
+                dueTime = "10:00",
+                repeatType = "Daily",
+                fromAiPlan = true
+            ))
+            
+            todos.add(Todo(
+                title = "Akşam rutini ve günlük değerlendirme",
+                description = "Bugünü değerlendir, yarını planla",
+                category = "Evening",
+                priority = 2,
+                dueDate = dateFormat.format(today.time),
+                dueTime = "21:00",
+                repeatType = "Daily",
+                fromAiPlan = true
+            ))
+            
+            todos.add(Todo(
+                title = "22:30'da uykuya hazırlan",
+                description = "7-8 saat uyku için",
+                category = "Sleep",
+                priority = 2,
+                dueDate = dateFormat.format(today.time),
+                dueTime = "22:30",
+                repeatType = "Daily",
+                fromAiPlan = true
+            ))
+            
+            // BU HAFTA
+            today.add(Calendar.DAY_OF_MONTH, 1)
+            todos.add(Todo(
+                title = "Sağlıklı market alışverişi yap",
+                description = "Sebze, meyve, protein kaynakları, tam tahıl",
+                category = "Nutrition",
+                priority = 3,
+                dueDate = dateFormat.format(today.time),
+                fromAiPlan = true
+            ))
+            
+            today.add(Calendar.DAY_OF_MONTH, 1)
+            todos.add(Todo(
+                title = "Haftalık egzersiz programını oluştur",
+                description = "${summary.exerciseDaysPerWeek} gün/hafta",
+                category = "Exercise",
+                priority = 3,
+                dueDate = dateFormat.format(today.time),
+                fromAiPlan = true
+            ))
+            
+            today.add(Calendar.DAY_OF_MONTH, 2)
+            todos.add(Todo(
+                title = "İlk progress fotoğrafı çek",
+                description = "Ön, yan ve arka açıdan",
+                category = "Progress",
+                priority = 2,
+                dueDate = dateFormat.format(today.time),
+                fromAiPlan = true
+            ))
+            
+            today.add(Calendar.DAY_OF_MONTH, 1)
+            todos.add(Todo(
+                title = "Uyku saatlerini düzenle",
+                description = "22:30 yatış, 06:00 kalkış rutini oluştur",
+                category = "Sleep",
+                priority = 2,
+                dueDate = dateFormat.format(today.time),
+                fromAiPlan = true
+            ))
+            
+            // İLK HAFTA SONU
+            today.add(Calendar.DAY_OF_MONTH, 2)
+            todos.add(Todo(
+                title = "Haftalık ilerleme değerlendirmesi",
+                description = "Neler iyi gitti, neler geliştirilebilir?",
+                category = "Progress",
+                priority = 2,
+                dueDate = dateFormat.format(today.time),
+                repeatType = "Weekly",
+                repeatDays = "Sun",
+                fromAiPlan = true
+            ))
+            
+            // AYLIK
+            today.add(Calendar.DAY_OF_MONTH, 23) // ~1 month
+            todos.add(Todo(
+                title = "Aylık vücut ölçülerini al",
+                description = "Kilo, bel, göğüs, bacak ölçüleri",
+                category = "Progress",
+                priority = 2,
+                dueDate = dateFormat.format(today.time),
+                repeatType = "Monthly",
+                fromAiPlan = true
+            ))
+            
+            if (goalType == GoalType.WEIGHT_LOSS || goalType == GoalType.MUSCLE_GAIN) {
+                today.add(Calendar.DAY_OF_MONTH, 0)
+                todos.add(Todo(
+                    title = "Progress fotoğrafı çek (Aylık)",
+                    description = "Önceki fotoğraflarla karşılaştır",
+                    category = "Progress",
+                    priority = 2,
+                    dueDate = dateFormat.format(today.time),
+                    repeatType = "Monthly",
+                    fromAiPlan = true
+                ))
+                
+                todos.add(Todo(
+                    title = "Planı gözden geçir ve güncelle",
+                    description = "İhtiyaçlara göre kalori/egzersiz ayarla",
+                    category = "Planning",
+                    priority = 2,
+                    dueDate = dateFormat.format(today.time),
+                    repeatType = "Monthly",
+                    fromAiPlan = true
+                ))
+            }
+            
+            return todos
+        }
 }
