@@ -16,18 +16,18 @@ import kotlinx.coroutines.*
 
 class AiPlanFragment : Fragment() {
     
-    private lateinit var etAge: EditText
-    private lateinit var etWeight: EditText
-    private lateinit var etHeight: EditText
-    private lateinit var etGoal: EditText
-    private lateinit var spinnerDuration: Spinner
-    private lateinit var btnGenerate: Button
-    private lateinit var btnApplyPlan: Button
-    private lateinit var tvPlan: TextView
-    private lateinit var progressBar: ProgressBar
+    private var etAge: EditText? = null
+    private var etWeight: EditText? = null
+    private var etHeight: EditText? = null
+    private var etGoal: EditText? = null
+    private var spinnerDuration: Spinner? = null
+    private var btnGenerate: Button? = null
+    private var btnApplyPlan: Button? = null
+    private var tvPlan: TextView? = null
+    private var progressBar: ProgressBar? = null
     
     private var currentPlan: DisciplinePlan? = null
-    private lateinit var db: DisciplineDatabase
+    private var db: DisciplineDatabase? = null
     
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -50,15 +50,15 @@ class AiPlanFragment : Fragment() {
         
         setupSpinner()
         
-        btnGenerate.setOnClickListener {
+        btnGenerate?.setOnClickListener {
             generateAiPlan()
         }
         
-        btnApplyPlan.setOnClickListener {
+        btnApplyPlan?.setOnClickListener {
             applyPlanToTodos()
         }
         
-        btnApplyPlan.visibility = View.GONE
+        btnApplyPlan?.visibility = View.GONE
         
         return view
     }
@@ -67,16 +67,16 @@ class AiPlanFragment : Fragment() {
         val durations = arrayOf("1 Hafta", "2 Hafta", "1 Ay", "3 Ay", "6 Ay")
         val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, durations)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        spinnerDuration.adapter = adapter
-        spinnerDuration.setSelection(2) // Default: 1 Ay
+        spinnerDuration?.adapter = adapter
+        spinnerDuration?.setSelection(2) // Default: 1 Ay
     }
     
     private fun generateAiPlan() {
-        val ageStr = etAge.text.toString()
-        val weightStr = etWeight.text.toString()
-        val heightStr = etHeight.text.toString()
-        val goal = etGoal.text.toString()
-        val duration = spinnerDuration.selectedItem.toString()
+        val ageStr = etAge?.text?.toString() ?: ""
+        val weightStr = etWeight?.text?.toString() ?: ""
+        val heightStr = etHeight?.text?.toString() ?: ""
+        val goal = etGoal?.text?.toString() ?: ""
+        val duration = spinnerDuration?.selectedItem?.toString() ?: "1 Ay"
         
         if (ageStr.isEmpty() || weightStr.isEmpty() || goal.isEmpty()) {
             Toast.makeText(requireContext(), "Lütfen tüm alanları doldurun", Toast.LENGTH_SHORT).show()
@@ -92,10 +92,10 @@ class AiPlanFragment : Fragment() {
             return
         }
         
-        progressBar.visibility = View.VISIBLE
-        btnGenerate.isEnabled = false
-        btnApplyPlan.visibility = View.GONE
-        tvPlan.text = "🤖 Kişiselleştirilmiş planınız oluşturuluyor..."
+        progressBar?.visibility = View.VISIBLE
+        btnGenerate?.isEnabled = false
+        btnApplyPlan?.visibility = View.GONE
+        tvPlan?.text = "🤖 Kişiselleştirilmiş planınız oluşturuluyor..."
         
         lifecycleScope.launch {
             try {
@@ -106,30 +106,32 @@ class AiPlanFragment : Fragment() {
                 }
                 
                 currentPlan = plan
-                tvPlan.text = plan.planText
-                btnApplyPlan.visibility = View.VISIBLE
+                tvPlan?.text = plan.planText
+                btnApplyPlan?.visibility = View.VISIBLE
                 
                 // Save profile
-                withContext(Dispatchers.IO) {
-                    val profile = com.realdiscipline.data.UserProfile(
-                        age = age,
-                        weight = weight,
-                        height = height,
-                        goal = goal,
-                        aiPlanGenerated = true,
-                        lastPlanUpdate = System.currentTimeMillis()
-                    )
-                    db.userProfileDao().insertProfile(profile)
+                db?.let { database ->
+                    withContext(Dispatchers.IO) {
+                        val profile = com.realdiscipline.data.UserProfile(
+                            age = age,
+                            weight = weight,
+                            height = height,
+                            goal = goal,
+                            aiPlanGenerated = true,
+                            lastPlanUpdate = System.currentTimeMillis()
+                        )
+                        database.userProfileDao().insertProfile(profile)
+                    }
                 }
                 
                 Toast.makeText(requireContext(), "✅ Plan başarıyla oluşturuldu!", Toast.LENGTH_SHORT).show()
                 
             } catch (e: Exception) {
-                tvPlan.text = "❌ Plan oluşturma hatası: ${e.message}"
+                tvPlan?.text = "❌ Plan oluşturma hatası: ${e.message}"
                 Toast.makeText(requireContext(), "Hata oluştu", Toast.LENGTH_SHORT).show()
             } finally {
-                progressBar.visibility = View.GONE
-                btnGenerate.isEnabled = true
+                progressBar?.visibility = View.GONE
+                btnGenerate?.isEnabled = true
             }
         }
     }
@@ -161,17 +163,18 @@ class AiPlanFragment : Fragment() {
     }
     
     private fun applyPlan(plan: DisciplinePlan) {
-        progressBar.visibility = View.VISIBLE
-        btnApplyPlan.isEnabled = false
+        val database = db ?: return
+        progressBar?.visibility = View.VISIBLE
+        btnApplyPlan?.isEnabled = false
         
         lifecycleScope.launch {
             try {
                 withContext(Dispatchers.IO) {
                     // Delete old AI plan todos
-                    db.todoDao().deleteAllAiPlanTodos()
+                    database.todoDao().deleteAllAiPlanTodos()
                     
                     // Insert new todos
-                    db.todoDao().insertTodos(plan.todos)
+                    database.todoDao().insertTodos(plan.todos)
                 }
                 
                 Toast.makeText(
@@ -186,8 +189,8 @@ class AiPlanFragment : Fragment() {
             } catch (e: Exception) {
                 Toast.makeText(requireContext(), "❌ Hata: ${e.message}", Toast.LENGTH_SHORT).show()
             } finally {
-                progressBar.visibility = View.GONE
-                btnApplyPlan.isEnabled = true
+                progressBar?.visibility = View.GONE
+                btnApplyPlan?.isEnabled = true
             }
         }
     }
