@@ -19,6 +19,9 @@ import android.view.LayoutInflater
 import android.view.WindowManager
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.*
 
 class CaptionService : Service() {
@@ -26,7 +29,7 @@ class CaptionService : Service() {
     private lateinit var windowManager: WindowManager
     private var captionView: android.view.View? = null
     private lateinit var textViewCaption: TextView
-    private var deepLTranslator: DeepLTranslator? = null
+    private var serverTranslator: ServerTranslator? = null
     private var speechRecognizer: SpeechRecognizer? = null
     private var isListening = false
     private var internalAudioCapture: InternalAudioCaptureManager? = null
@@ -75,7 +78,7 @@ class CaptionService : Service() {
                 
                 internalAudioCapture = InternalAudioCaptureManager(
                     this,
-                    deepLTranslator!!,
+                    serverTranslator!!,
                     targetLang,
                     onTextRecognized = { text ->
                         textViewCaption?.text = text
@@ -137,12 +140,19 @@ class CaptionService : Service() {
     }
 
     private fun initializeTranslator() {
-        // DeepL API key
-        val apiKey = "a78ec366-84ac-40fe-831b-204b07bcfeda:fx"
+        serverTranslator = ServerTranslator()
         
-        deepLTranslator = DeepLTranslator(apiKey)
+        Log.d(TAG, "ServerTranslator initialized")
         
-        Log.d(TAG, "DeepL translator initialized")
+        // Test server connection
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                serverTranslator!!.testConnection()
+                Log.d(TAG, "✅ Translation server connected successfully")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Translation server connection failed", e)
+            }
+        }
     }
 
     private fun showOverlay() {
@@ -275,7 +285,7 @@ class CaptionService : Service() {
         if (isListening) return
 
         val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
-        val sourceLang = prefs.getString("source_lang", TranslateLanguage.ENGLISH) ?: TranslateLanguage.ENGLISH
+        val sourceLang = prefs.getString("source_lang", "EN") ?: "EN"
         
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -293,23 +303,26 @@ class CaptionService : Service() {
     }
 
     private fun translateAndDisplay(text: String) {
-        if (deepLTranslator == null) {
-            Log.e(TAG, "DeepL Translator not initialized")
+        if (serverTranslator == null) {
+            Log.e(TAG, "ServerTranslator not initialized")
             textViewCaption?.text = "❌ Translator not ready. Please wait..."
             initializeTranslator()
             return
         }
         
-        Log.d(TAG, "Translating with DeepL: $text")
+        Log.d(TAG, "Translating with ServerTranslator: $text")
         
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
             try {
                 val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
                 val targetLang = prefs.getString("target_lang", "TR") ?: "TR"
                 
-                val translatedText = deepLTranslator!!.translate(text, targetLang)
+                // Determine source language based on target (assume EN for now)
+                val sourceLang = "EN"
                 
-                Log.d(TAG, "DeepL Translated: $translatedText")
+                val translatedText = serverTranslator!!.translate(text, sourceLang, targetLang)
+                
+                Log.d(TAG, "ServerTranslator Result: $translatedText")
                 textViewCaption?.text = translatedText
                 
                 // Auto-hide after 8 seconds
@@ -318,7 +331,7 @@ class CaptionService : Service() {
                 }, 8000)
                 
             } catch (e: Exception) {
-                Log.e(TAG, "DeepL Translation failed", e)
+                Log.e(TAG, "ServerTranslator Translation failed", e)
                 textViewCaption?.text = "⚠️ Translation failed: $text"
                 
                 // Auto-hide after 6 seconds
@@ -331,25 +344,25 @@ class CaptionService : Service() {
 
     private fun getLocaleFromLanguageCode(code: String): String {
         return when (code) {
-            TranslateLanguage.TURKISH -> "tr-TR"
-            TranslateLanguage.ENGLISH -> "en-US"
-            TranslateLanguage.CHINESE -> "zh-CN"
-            TranslateLanguage.SPANISH -> "es-ES"
-            TranslateLanguage.FRENCH -> "fr-FR"
-            TranslateLanguage.GERMAN -> "de-DE"
-            TranslateLanguage.ITALIAN -> "it-IT"
-            TranslateLanguage.JAPANESE -> "ja-JP"
-            TranslateLanguage.KOREAN -> "ko-KR"
-            TranslateLanguage.RUSSIAN -> "ru-RU"
-            TranslateLanguage.ARABIC -> "ar-SA"
-            TranslateLanguage.PORTUGUESE -> "pt-PT"
-            TranslateLanguage.HINDI -> "hi-IN"
-            TranslateLanguage.BENGALI -> "bn-BD"
-            TranslateLanguage.INDONESIAN -> "id-ID"
-            TranslateLanguage.THAI -> "th-TH"
-            TranslateLanguage.VIETNAMESE -> "vi-VN"
-            TranslateLanguage.DUTCH -> "nl-NL"
-            TranslateLanguage.GREEK -> "el-GR"
+            "TR" -> "tr-TR"
+            "EN" -> "en-US"
+            "ZH" -> "zh-CN"
+            "ES" -> "es-ES"
+            "FR" -> "fr-FR"
+            "DE" -> "de-DE"
+            "IT" -> "it-IT"
+            "JA" -> "ja-JP"
+            "KO" -> "ko-KR"
+            "RU" -> "ru-RU"
+            "AR" -> "ar-SA"
+            "PT" -> "pt-PT"
+            "HI" -> "hi-IN"
+            "BN" -> "bn-BD"
+            "ID" -> "id-ID"
+            "TH" -> "th-TH"
+            "VI" -> "vi-VN"
+            "NL" -> "nl-NL"
+            "EL" -> "el-GR"
             else -> "en-US"
         }
     }
@@ -358,7 +371,6 @@ class CaptionService : Service() {
         super.onDestroy()
         speechRecognizer?.destroy()
         internalAudioCapture?.stopCapture()
-        translator?.close()
         captionView?.let {
             try {
                 windowManager.removeView(it)

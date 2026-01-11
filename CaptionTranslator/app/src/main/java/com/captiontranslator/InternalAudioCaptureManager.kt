@@ -23,7 +23,7 @@ import java.nio.ByteOrder
 @RequiresApi(Build.VERSION_CODES.Q)
 class InternalAudioCaptureManager(
     private val context: Context,
-    private val deepLTranslator: DeepLTranslator,
+    private val serverTranslator: ServerTranslator,
     private val targetLanguage: String,
     private val onTextRecognized: (String) -> Unit,
     private val onTranslation: (String, String) -> Unit  // (original, translated)
@@ -275,18 +275,20 @@ class InternalAudioCaptureManager(
     
     private suspend fun translateText(text: String) {
         try {
-            Log.d(TAG, "🔄 Starting DeepL translation: '$text' → $targetLanguage")
+            Log.d(TAG, "🔄 Starting ServerTranslator translation: '$text' → $targetLanguage")
             
-            val translatedText = deepLTranslator.translate(text, targetLanguage)
+            // Assume source language is English
+            val sourceLang = "EN"
+            val translatedText = serverTranslator.translate(text, sourceLang, targetLanguage) ?: "Translation returned null"
             
-            Log.d(TAG, "✅ DeepL Translation SUCCESS: '$text' → '$translatedText'")
+            Log.d(TAG, "✅ ServerTranslator Translation SUCCESS: '$text' → '$translatedText'")
             
             withContext(Dispatchers.Main) {
                 onTranslation(text, translatedText)
             }
             
         } catch (e: Exception) {
-            Log.e(TAG, "❌ DeepL Translation FAILED: ${e.message}", e)
+            Log.e(TAG, "❌ ServerTranslator Translation FAILED: ${e.message}", e)
             
             withContext(Dispatchers.Main) {
                 onTranslation(text, "⚠️ Translation failed: ${e.message}")

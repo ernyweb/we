@@ -14,7 +14,6 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.google.mlkit.nl.translate.TranslateLanguage
 
 class MainActivity : AppCompatActivity() {
 
@@ -63,26 +62,26 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupLanguageSpinners() {
         val languages = listOf(
-            Language("Auto Detect", TranslateLanguage.ENGLISH),
-            Language("🇹🇷 Turkish (Türkçe)", TranslateLanguage.TURKISH),
-            Language("🇺🇸 English", TranslateLanguage.ENGLISH),
-            Language("🇨🇳 Chinese (中文)", TranslateLanguage.CHINESE),
-            Language("🇪🇸 Spanish (Español)", TranslateLanguage.SPANISH),
-            Language("🇫🇷 French (Français)", TranslateLanguage.FRENCH),
-            Language("🇩🇪 German (Deutsch)", TranslateLanguage.GERMAN),
-            Language("🇮🇹 Italian (Italiano)", TranslateLanguage.ITALIAN),
-            Language("🇯🇵 Japanese (日本語)", TranslateLanguage.JAPANESE),
-            Language("🇰🇷 Korean (한국어)", TranslateLanguage.KOREAN),
-            Language("🇷🇺 Russian (Русский)", TranslateLanguage.RUSSIAN),
-            Language("🇦🇪 Arabic (العربية)", TranslateLanguage.ARABIC),
-            Language("🇵🇹 Portuguese", TranslateLanguage.PORTUGUESE),
-            Language("🇮🇳 Hindi (हिन्दी)", TranslateLanguage.HINDI),
-            Language("🇧🇩 Bengali (বাংলা)", TranslateLanguage.BENGALI),
-            Language("🇮🇩 Indonesian", TranslateLanguage.INDONESIAN),
-            Language("🇹🇭 Thai (ไทย)", TranslateLanguage.THAI),
-            Language("🇻🇳 Vietnamese", TranslateLanguage.VIETNAMESE),
-            Language("🇳🇱 Dutch (Nederlands)", TranslateLanguage.DUTCH),
-            Language("🇬🇷 Greek (Ελληνικά)", TranslateLanguage.GREEK)
+            Language("Auto Detect", "EN"),
+            Language("🇹🇷 Turkish (Türkçe)", "TR"),
+            Language("🇺🇸 English", "EN"),
+            Language("🇨🇳 Chinese (中文)", "ZH"),
+            Language("🇪🇸 Spanish (Español)", "ES"),
+            Language("🇫🇷 French (Français)", "FR"),
+            Language("🇩🇪 German (Deutsch)", "DE"),
+            Language("🇮🇹 Italian (Italiano)", "IT"),
+            Language("🇯🇵 Japanese (日本語)", "JA"),
+            Language("🇰🇷 Korean (한국어)", "KO"),
+            Language("🇷🇺 Russian (Русский)", "RU"),
+            Language("🇦🇪 Arabic (العربية)", "AR"),
+            Language("🇵🇹 Portuguese", "PT"),
+            Language("🇮🇳 Hindi (हिन्दी)", "HI"),
+            Language("🇧🇩 Bengali (বাংলা)", "BN"),
+            Language("🇮🇩 Indonesian", "ID"),
+            Language("🇹🇭 Thai (ไทย)", "TH"),
+            Language("🇻🇳 Vietnamese", "VI"),
+            Language("🇳🇱 Dutch (Nederlands)", "NL"),
+            Language("🇬🇷 Greek (Ελληνικά)", "EL")
         )
 
         val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, languages.map { it.name })
