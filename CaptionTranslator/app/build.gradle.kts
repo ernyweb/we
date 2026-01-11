@@ -36,8 +36,15 @@ dependencies {
     implementation("com.google.android.material:material:1.9.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     
-    // ML Kit Translation
-    implementation("com.google.mlkit:translate:17.0.1")
+    // DeepL Translation API (official Java SDK)
+    implementation("com.deepl.api:deepl-java:1.5.0")
+    
+    // DeepL Translation API (official library)
+    implementation("com.deepl.api:deepl-java:1.5.0")
+    
+    // OkHttp for HTTP requests
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.google.code.gson:gson:2.10.1")
     
     // Coroutines for async audio processing
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")

@@ -11,11 +11,9 @@ import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
-import com.google.mlkit.nl.translate.Translator
 import kotlinx.coroutines.*
 import org.vosk.Model
 import org.vosk.Recognizer
-import org.vosk.android.StorageService
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
@@ -25,7 +23,8 @@ import java.nio.ByteOrder
 @RequiresApi(Build.VERSION_CODES.Q)
 class InternalAudioCaptureManager(
     private val context: Context,
-    private val translator: Translator,
+    private val deepLTranslator: DeepLTranslator,
+    private val targetLanguage: String,
     private val onTextRecognized: (String) -> Unit,
     private val onTranslation: (String, String) -> Unit  // (original, translated)
 ) {
@@ -275,17 +274,24 @@ class InternalAudioCaptureManager(
     }
     
     private suspend fun translateText(text: String) {
-        Log.d(TAG, "🔄 Starting translation: '$text'")
-        
-        translator.translate(text)
-            .addOnSuccessListener { translatedText ->
-                Log.d(TAG, "✅ Translation SUCCESS: '$text' → '$translatedText'")
+        try {
+            Log.d(TAG, "🔄 Starting DeepL translation: '$text' → $targetLanguage")
+            
+            val translatedText = deepLTranslator.translate(text, targetLanguage)
+            
+            Log.d(TAG, "✅ DeepL Translation SUCCESS: '$text' → '$translatedText'")
+            
+            withContext(Dispatchers.Main) {
                 onTranslation(text, translatedText)
             }
-            .addOnFailureListener { e ->
-                Log.e(TAG, "❌ Translation FAILED: ${e.message}", e)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ DeepL Translation FAILED: ${e.message}", e)
+            
+            withContext(Dispatchers.Main) {
                 onTranslation(text, "⚠️ Translation failed: ${e.message}")
             }
+        }
     }
     
     fun stopCapture() {

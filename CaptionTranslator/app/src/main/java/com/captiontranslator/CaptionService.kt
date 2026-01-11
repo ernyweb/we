@@ -19,11 +19,6 @@ import android.view.LayoutInflater
 import android.view.WindowManager
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
-import com.google.mlkit.common.model.DownloadConditions
-import com.google.mlkit.nl.translate.TranslateLanguage
-import com.google.mlkit.nl.translate.Translation
-import com.google.mlkit.nl.translate.Translator
-import com.google.mlkit.nl.translate.TranslatorOptions
 import java.util.*
 
 class CaptionService : Service() {
@@ -31,7 +26,7 @@ class CaptionService : Service() {
     private lateinit var windowManager: WindowManager
     private var captionView: android.view.View? = null
     private lateinit var textViewCaption: TextView
-    private var translator: Translator? = null
+    private var deepLTranslator: DeepLTranslator? = null
     private var speechRecognizer: SpeechRecognizer? = null
     private var isListening = false
     private var internalAudioCapture: InternalAudioCaptureManager? = null
@@ -75,9 +70,13 @@ class CaptionService : Service() {
             if (data != null && resultCode != 0) {
                 textViewCaption?.text = "🔊 Capturing internal audio..."
                 
+                val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
+                val targetLang = prefs.getString("target_lang", "TR") ?: "TR"
+                
                 internalAudioCapture = InternalAudioCaptureManager(
                     this,
-                    translator!!,
+                    deepLTranslator!!,
+                    targetLang,
                     onTextRecognized = { text ->
                         textViewCaption?.text = text
                     },
@@ -138,29 +137,12 @@ class CaptionService : Service() {
     }
 
     private fun initializeTranslator() {
-        val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
-        val sourceLang = prefs.getString("source_lang", TranslateLanguage.ENGLISH) ?: TranslateLanguage.ENGLISH
-        val targetLang = prefs.getString("target_lang", TranslateLanguage.TURKISH) ?: TranslateLanguage.TURKISH
-
-        val options = TranslatorOptions.Builder()
-            .setSourceLanguage(sourceLang)
-            .setTargetLanguage(targetLang)
-            .build()
-
-        translator = Translation.getClient(options)
-
-        // Download model if needed
-        val conditions = DownloadConditions.Builder()
-            .requireWifi()
-            .build()
-
-        translator?.downloadModelIfNeeded(conditions)
-            ?.addOnSuccessListener {
-                Log.d(TAG, "Translation model downloaded")
-            }
-            ?.addOnFailureListener { e ->
-                Log.e(TAG, "Model download failed", e)
-            }
+        // DeepL API key
+        val apiKey = "a78ec366-84ac-40fe-831b-204b07bcfeda:fx"
+        
+        deepLTranslator = DeepLTranslator(apiKey)
+        
+        Log.d(TAG, "DeepL translator initialized")
     }
 
     private fun showOverlay() {
@@ -311,30 +293,32 @@ class CaptionService : Service() {
     }
 
     private fun translateAndDisplay(text: String) {
-        if (translator == null) {
-            Log.e(TAG, "Translator not initialized")
+        if (deepLTranslator == null) {
+            Log.e(TAG, "DeepL Translator not initialized")
             textViewCaption?.text = "❌ Translator not ready. Please wait..."
-            // Reinitialize
             initializeTranslator()
             return
         }
         
-        Log.d(TAG, "Translating: $text")
-        textViewCaption?.text = "⏳ Translating..."
+        Log.d(TAG, "Translating with DeepL: $text")
         
-        translator?.translate(text)
-            ?.addOnSuccessListener { translatedText ->
-                Log.d(TAG, "Translated: $translatedText")
-                textViewCaption?.text = "✅ $translatedText"
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            try {
+                val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
+                val targetLang = prefs.getString("target_lang", "TR") ?: "TR"
                 
-                // Auto-hide after 8 seconds (longer to read)
+                val translatedText = deepLTranslator!!.translate(text, targetLang)
+                
+                Log.d(TAG, "DeepL Translated: $translatedText")
+                textViewCaption?.text = translatedText
+                
+                // Auto-hide after 8 seconds
                 android.os.Handler(mainLooper).postDelayed({
                     textViewCaption?.text = ""
                 }, 8000)
-            }
-            ?.addOnFailureListener { e ->
-                Log.e(TAG, "Translation failed", e)
-                // Show original text if translation fails
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "DeepL Translation failed", e)
                 textViewCaption?.text = "⚠️ Translation failed: $text"
                 
                 // Auto-hide after 6 seconds
@@ -342,6 +326,7 @@ class CaptionService : Service() {
                     textViewCaption?.text = ""
                 }, 6000)
             }
+        }
     }
 
     private fun getLocaleFromLanguageCode(code: String): String {

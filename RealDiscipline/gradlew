@@ -1,3 +1,0 @@
-#!/bin/sh
-GRADLE_HOME="/workspaces/we/CaptionTranslator/gradle-8.1.1"
-exec "$GRADLE_HOME/bin/gradle" "$@"
