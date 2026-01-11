@@ -13,10 +13,11 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Security Configuration
-const SERVER_SECRET = process.env.SERVER_SECRET || 'translation-server-secret-key-2026-secure';
+const SERVER_SECRET = process.env.SERVER_SECRET || 'vps-translation-server-secret-key-2026-change-this';
 const API_KEYS = new Set([
   'translation-key-2026-secure-abc123',
   'mobile-app-key-xyz789',
+  'mobile-internal-audio-key-2026-xyz789',  // Special key for internal audio APK
 ]);
 
 // Load comprehensive dictionaries
@@ -35,6 +36,46 @@ const translations = {
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Request Logging Middleware
+const requestHistory = [];
+const MAX_HISTORY = 100;
+
+app.use((req, res, next) => {
+  const startTime = Date.now();
+  const originalSend = res.send;
+  
+  res.send = function(data) {
+    const duration = Date.now() - startTime;
+    const logEntry = {
+      timestamp: new Date().toISOString(),
+      method: req.method,
+      path: req.path,
+      ip: req.ip || req.connection.remoteAddress,
+      userAgent: req.headers['user-agent'],
+      duration: `${duration}ms`,
+      status: res.statusCode
+    };
+    
+    // Add to history (keep last 100)
+    requestHistory.unshift(logEntry);
+    if (requestHistory.length > MAX_HISTORY) {
+      requestHistory.pop();
+    }
+    
+    // Console log with colors
+    const statusColor = res.statusCode >= 400 ? '\x1b[31m' : '\x1b[32m';
+    const resetColor = '\x1b[0m';
+    console.log(
+      `${statusColor}[${logEntry.timestamp}]${resetColor} ` +
+      `${req.method} ${req.path} - ${statusColor}${res.statusCode}${resetColor} - ${duration}ms - ${req.ip}`
+    );
+    
+    return originalSend.call(this, data);
+  };
+  
+  next();
+});
 
 // HMAC Signature Verification
 function verifySignature(data, signature, timestamp) {
@@ -105,7 +146,10 @@ const requireSignature = (req, res, next) => {
   next();
 };
 
-// Translation Function
+// Translation Function with Logging
+const translationHistory = [];
+const MAX_TRANSLATION_HISTORY = 50;
+
 function translate(text, fromLang, toLang) {
   const key = `${fromLang}-${toLang}`;
   const dict = translations[key];
@@ -121,12 +165,11 @@ function translate(text, fromLang, toLang) {
   const normalized = text.toLowerCase().trim();
   const words = normalized.split(/\s+/);
   const translated = words.map(word => {
-    // Remove punctuation for lookup
     const clean = word.replace(/[.,!?;:]/g, '');
     return dict[clean] || word;
   });
   
-  return {
+  const result = {
     success: true,
     original: text,
     translated: translated.join(' '),
@@ -135,6 +178,28 @@ function translate(text, fromLang, toLang) {
     wordsTranslated: translated.filter((w, i) => w !== words[i].replace(/[.,!?;:]/g, '')).length,
     totalWords: words.length
   };
+  
+  // Log translation
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    text: text.substring(0, 100), // Limit length
+    from: fromLang,
+    to: toLang,
+    result: result.translated.substring(0, 100)
+  };
+  
+  translationHistory.unshift(logEntry);
+  if (translationHistory.length > MAX_TRANSLATION_HISTORY) {
+    translationHistory.pop();
+  }
+  
+  // Console log translation
+  console.log(
+    `\x1b[36m[TRANSLATE]\x1b[0m ${fromLang}→${toLang}: ` +
+    `"${text.substring(0, 50)}" → "${result.translated.substring(0, 50)}"`
+  );
+  
+  return result;
 }
 
 // Routes
@@ -226,6 +291,32 @@ app.get('/test', requireApiKey, (req, res) => {
   res.json(signResponse(result));
 });
 
+// History endpoint - Show recent translations and requests
+app.get('/history', requireApiKey, (req, res) => {
+  res.json(signResponse({
+    requests: requestHistory.slice(0, 20),
+    translations: translationHistory.slice(0, 20),
+    totalRequests: requestHistory.length,
+    totalTranslations: translationHistory.length
+  }));
+});
+
+// Stats endpoint
+app.get('/stats', requireApiKey, (req, res) => {
+  const stats = {
+    uptime: process.uptime(),
+    totalRequests: requestHistory.length,
+    totalTranslations: translationHistory.length,
+    supportedLanguages: 5,
+    languagePairs: Object.keys(translations).length,
+    dictionarySize: Object.keys(translations).reduce((sum, key) => 
+      sum + Object.keys(translations[key]).length, 0
+    )
+  };
+  
+  res.json(signResponse(stats));
+});
+
 // Error handling
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -246,7 +337,9 @@ app.use((req, res) => {
       'GET /translate-{from}-{text}-to-{to}',
       'POST /translate',
       'GET /download/:lang',
-      'GET /test'
+      'GET /test',
+      'GET /history',
+      'GET /stats'
     ]
   }));
 });
@@ -262,10 +355,12 @@ app.listen(PORT, '0.0.0.0', () => {
 ║  Security: HMAC-SHA256 + API Key Authentication          ║
 ║  Languages: EN, TR, RU, ES, FR                            ║
 ║  Total Dictionaries: ${Object.keys(translations).length}                                    ║
+║  Logging: ✓ Request & Translation History                ║
 ╚═══════════════════════════════════════════════════════════╝
 
 📡 Server ready at http://localhost:${PORT}
 🔑 API Keys configured: ${API_KEYS.size}
+📊 History endpoints: /history, /stats
   `);
 });
 

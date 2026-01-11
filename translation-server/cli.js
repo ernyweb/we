@@ -12,7 +12,7 @@ const http = require('http');
 // Configuration
 const SERVER_URL = process.env.SERVER_URL || 'http://localhost:3000';
 const API_KEY = process.env.API_KEY || 'translation-key-2026-secure-abc123';
-const SERVER_SECRET = process.env.SERVER_SECRET || 'translation-server-secret-key-2026-secure';
+const SERVER_SECRET = process.env.SERVER_SECRET || 'vps-translation-server-secret-key-2026-change-this';
 
 const rl = readline.createInterface({
   input: process.stdin,

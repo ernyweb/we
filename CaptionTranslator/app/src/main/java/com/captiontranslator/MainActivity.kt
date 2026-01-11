@@ -2,12 +2,9 @@ package com.captiontranslator
 
 import android.Manifest
 import android.app.Activity
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -24,18 +21,17 @@ import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var toggleService: Switch
     private lateinit var spinnerSourceLang: Spinner
     private lateinit var spinnerTargetLang: Spinner
+    private lateinit var toggleService: androidx.appcompat.widget.SwitchCompat
     private lateinit var seekBarTextSize: SeekBar
     private lateinit var textViewTextSize: TextView
+    private lateinit var textViewServerStatus: TextView
+    private lateinit var textViewServiceStatus: TextView
     private lateinit var btnTestCaption: Button
-    private lateinit var radioMicrophone: RadioButton
-    private lateinit var radioInternalAudio: RadioButton
 
-    private val OVERLAY_PERMISSION_REQUEST_CODE = 100
-    private val AUDIO_PERMISSION_REQUEST_CODE = 101
-    private val MEDIA_PROJECTION_REQUEST_CODE = 102
+    private val OVERLAY_PERMISSION_REQUEST_CODE = 1002
+    private val MEDIA_PROJECTION_REQUEST_CODE = 1003
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,147 +39,123 @@ class MainActivity : AppCompatActivity() {
 
         initViews()
         setupLanguageSpinners()
+        checkServerConnection()
         setupListeners()
-        checkPermissions()
     }
 
     private fun initViews() {
-        toggleService = findViewById(R.id.toggleService)
         spinnerSourceLang = findViewById(R.id.spinnerSourceLang)
         spinnerTargetLang = findViewById(R.id.spinnerTargetLang)
+        toggleService = findViewById(R.id.toggleService)
         seekBarTextSize = findViewById(R.id.seekBarTextSize)
         textViewTextSize = findViewById(R.id.textViewTextSize)
+        textViewServerStatus = findViewById(R.id.textViewServerStatus)
+        textViewServiceStatus = findViewById(R.id.textViewServiceStatus)
         btnTestCaption = findViewById(R.id.btnTestCaption)
-        radioMicrophone = findViewById(R.id.radioMicrophone)
-        radioInternalAudio = findViewById(R.id.radioInternalAudio)
-        
-        // Load saved audio source preference
-        val audioSource = getSharedPreferences("settings", MODE_PRIVATE)
-            .getString("audio_source", "microphone") ?: "microphone"
-        
-        when (audioSource) {
-            "microphone" -> radioMicrophone.isChecked = true
-            "internal" -> radioInternalAudio.isChecked = true
-        }
+
+        toggleService.isEnabled = false
     }
 
     private fun setupLanguageSpinners() {
-        val languages = listOf(
-            Language("Auto Detect", "EN"),
-            Language("🇹🇷 Turkish (Türkçe)", "TR"),
-            Language("🇺🇸 English", "EN"),
-            Language("🇨🇳 Chinese (中文)", "ZH"),
-            Language("🇪🇸 Spanish (Español)", "ES"),
-            Language("🇫🇷 French (Français)", "FR"),
-            Language("🇩🇪 German (Deutsch)", "DE"),
-            Language("🇮🇹 Italian (Italiano)", "IT"),
-            Language("🇯🇵 Japanese (日本語)", "JA"),
-            Language("🇰🇷 Korean (한국어)", "KO"),
-            Language("🇷🇺 Russian (Русский)", "RU"),
-            Language("🇦🇪 Arabic (العربية)", "AR"),
-            Language("🇵🇹 Portuguese", "PT"),
-            Language("🇮🇳 Hindi (हिन्दी)", "HI"),
-            Language("🇧🇩 Bengali (বাংলা)", "BN"),
-            Language("🇮🇩 Indonesian", "ID"),
-            Language("🇹🇭 Thai (ไทย)", "TH"),
-            Language("🇻🇳 Vietnamese", "VI"),
-            Language("🇳🇱 Dutch (Nederlands)", "NL"),
-            Language("🇬🇷 Greek (Ελληνικά)", "EL")
-        )
-
-        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, languages.map { it.name })
+        val languages = arrayOf("EN (English)", "TR (Türkçe)", "RU (Русский)", "ES (Español)")
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, languages)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
 
         spinnerSourceLang.adapter = adapter
         spinnerTargetLang.adapter = adapter
 
-        // Default: Auto → Turkish
-        spinnerSourceLang.setSelection(0)
-        spinnerTargetLang.setSelection(1)
+        val prefs = getSharedPreferences("settings", MODE_PRIVATE)
+        val sourceLang = prefs.getString("source_lang", "EN") ?: "EN"
+        val targetLang = prefs.getString("target_lang", "TR") ?: "TR"
 
-        // Save language codes
+        spinnerSourceLang.setSelection(getLanguageIndex(sourceLang))
+        spinnerTargetLang.setSelection(getLanguageIndex(targetLang))
+
         spinnerSourceLang.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
-                getSharedPreferences("settings", MODE_PRIVATE).edit()
-                    .putString("source_lang", languages[position].code)
-                    .apply()
+                val lang = getLanguageCode(position)
+                prefs.edit().putString("source_lang", lang).apply()
             }
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
 
         spinnerTargetLang.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
-                getSharedPreferences("settings", MODE_PRIVATE).edit()
-                    .putString("target_lang", languages[position].code)
-                    .apply()
+                val lang = getLanguageCode(position)
+                prefs.edit().putString("target_lang", lang).apply()
             }
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
     }
 
-    private fun setupListeners() {
-        // Audio source selection
-        radioMicrophone.setOnCheckedChangeListener { _, isChecked ->
-            if (isChecked) {
-                getSharedPreferences("settings", MODE_PRIVATE).edit()
-                    .putString("audio_source", "microphone")
-                    .apply()
-                Toast.makeText(this, "🎤 Microphone mode (for speaking)", Toast.LENGTH_SHORT).show()
-            }
+    private fun getLanguageIndex(code: String): Int {
+        return when (code) {
+            "EN" -> 0
+            "TR" -> 1
+            "RU" -> 2
+            "ES" -> 3
+            else -> 0
         }
-        
-        radioInternalAudio.setOnCheckedChangeListener { _, isChecked ->
-            if (isChecked) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    getSharedPreferences("settings", MODE_PRIVATE).edit()
-                        .putString("audio_source", "internal")
-                        .apply()
-                    Toast.makeText(this, "🔊 Internal audio mode (for YouTube/videos)", Toast.LENGTH_SHORT).show()
-                } else {
-                    radioMicrophone.isChecked = true
-                    Toast.makeText(this, "Internal audio requires Android 10+", Toast.LENGTH_LONG).show()
+    }
+
+    private fun getLanguageCode(index: Int): String {
+        return when (index) {
+            0 -> "EN"
+            1 -> "TR"
+            2 -> "RU"
+            3 -> "ES"
+            else -> "EN"
+        }
+    }
+
+    private fun checkServerConnection() {
+        textViewServerStatus.text = "● Checking VPS..."
+        textViewServerStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_orange_dark))
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val translator = ServerTranslator()
+                val connected = translator.testConnection()
+                
+                withContext(Dispatchers.Main) {
+                    if (connected) {
+                        textViewServerStatus.text = "● VPS Online (72.60.130.39)"
+                        textViewServerStatus.setTextColor(ContextCompat.getColor(this@MainActivity, android.R.color.holo_green_dark))
+                        toggleService.isEnabled = true
+                    } else {
+                        textViewServerStatus.text = "● VPS Offline"
+                        textViewServerStatus.setTextColor(ContextCompat.getColor(this@MainActivity, android.R.color.holo_red_dark))
+                        showServerErrorDialog()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    textViewServerStatus.text = "● Connection Failed"
+                    textViewServerStatus.setTextColor(ContextCompat.getColor(this@MainActivity, android.R.color.holo_red_dark))
+                    showServerErrorDialog()
                 }
             }
         }
-        
+    }
+
+    private fun setupListeners() {
         toggleService.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
-                // Check internet connection first
-                if (!isInternetAvailable()) {
+                if (Settings.canDrawOverlays(this)) {
+                    requestMediaProjection()
+                } else {
                     toggleService.isChecked = false
-                    showNoInternetDialog()
-                    return@setOnCheckedChangeListener
-                }
-                
-                // Check VPS server connection
-                checkServerConnection { connected ->
-                    if (!connected) {
-                        toggleService.isChecked = false
-                        showServerErrorDialog()
-                    } else {
-                        val audioSource = getSharedPreferences("settings", MODE_PRIVATE)
-                            .getString("audio_source", "microphone") ?: "microphone"
-                        
-                        if (audioSource == "internal" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                            requestMediaProjection()
-                        } else {
-                            if (hasAllPermissions()) {
-                                startCaptionService()
-                            } else {
-                                toggleService.isChecked = false
-                                checkPermissions()
-                            }
-                        }
-                    }
+                    showOverlayPermissionDialog()
                 }
             } else {
                 stopCaptionService()
+                textViewServiceStatus.text = "Tap to start"
             }
         }
 
         seekBarTextSize.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                val size = 12 + progress // 12-42 sp
+                val size = 12 + progress
                 textViewTextSize.text = "${size}sp"
                 getSharedPreferences("settings", MODE_PRIVATE).edit()
                     .putInt("text_size", size)
@@ -196,73 +168,51 @@ class MainActivity : AppCompatActivity() {
         btnTestCaption.setOnClickListener {
             val intent = Intent(this, CaptionService::class.java)
             intent.putExtra("test_mode", true)
-            intent.putExtra("test_text", "Hello! This is a test caption. 你好！这是测试字幕。")
-            startService(intent)
+            intent.putExtra("test_text", "Testing internal audio capture and translation")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+            Toast.makeText(this, "Test caption displayed!", Toast.LENGTH_SHORT).show()
         }
-    }
-
-    private fun checkPermissions() {
-        if (!Settings.canDrawOverlays(this)) {
-            showOverlayPermissionDialog()
-        } else if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) 
-                   != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, 
-                arrayOf(Manifest.permission.RECORD_AUDIO), 
-                AUDIO_PERMISSION_REQUEST_CODE)
-        }
-    }
-
-    private fun hasAllPermissions(): Boolean {
-        return Settings.canDrawOverlays(this) &&
-               ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun showOverlayPermissionDialog() {
         AlertDialog.Builder(this)
-            .setTitle("Overlay Permission Required")
-            .setMessage("Please enable 'Display over other apps' permission to show captions.")
-            .setPositiveButton("Settings") { _, _ ->
-                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, 
-                    Uri.parse("package:$packageName"))
+            .setTitle("Permission Required")
+            .setMessage("Enable 'Display over other apps' to show captions.")
+            .setPositiveButton("Grant") { _, _ ->
+                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
                 startActivityForResult(intent, OVERLAY_PERMISSION_REQUEST_CODE)
             }
             .setNegativeButton("Cancel", null)
             .show()
     }
 
-    private fun startCaptionService() {
-        val intent = Intent(this, CaptionService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
-        Toast.makeText(this, "Caption service started", Toast.LENGTH_SHORT).show()
+    private fun showServerErrorDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("VPS Connection Failed")
+            .setMessage("Cannot connect to 72.60.130.39\n\nCheck:\n• Internet connection\n• VPS server is running")
+            .setPositiveButton("Retry") { _, _ ->
+                checkServerConnection()
+            }
+            .setNegativeButton("OK", null)
+            .show()
     }
 
-    private fun stopCaptionService() {
-        stopService(Intent(this, CaptionService::class.java))
-        Toast.makeText(this, "Caption service stopped", Toast.LENGTH_SHORT).show()
-    }
-    
     private fun requestMediaProjection() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             val mediaProjectionManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
             startActivityForResult(mediaProjectionManager.createScreenCaptureIntent(), MEDIA_PROJECTION_REQUEST_CODE)
         }
     }
-    
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         
         if (requestCode == MEDIA_PROJECTION_REQUEST_CODE) {
             if (resultCode == Activity.RESULT_OK && data != null) {
-                // Save the result for CaptionService
-                getSharedPreferences("settings", MODE_PRIVATE).edit()
-                    .putInt("media_projection_result_code", resultCode)
-                    .apply()
-                
-                // Start service with projection data
                 val intent = Intent(this, CaptionService::class.java)
                 intent.putExtra("media_projection_result_code", resultCode)
                 intent.putExtra("media_projection_data", data)
@@ -273,6 +223,7 @@ class MainActivity : AppCompatActivity() {
                     startService(intent)
                 }
                 
+                textViewServiceStatus.text = "🔊 Capturing audio..."
                 Toast.makeText(this, "Internal audio capture started!", Toast.LENGTH_SHORT).show()
             } else {
                 toggleService.isChecked = false
@@ -281,72 +232,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == AUDIO_PERMISSION_REQUEST_CODE) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Audio permission granted", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this, "Audio permission required for speech recognition", Toast.LENGTH_LONG).show()
-            }
-        }
+    private fun stopCaptionService() {
+        stopService(Intent(this, CaptionService::class.java))
+        Toast.makeText(this, "Caption service stopped", Toast.LENGTH_SHORT).show()
     }
-
-    private fun isInternetAvailable(): Boolean {
-        val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val network = connectivityManager.activeNetwork ?: return false
-            val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
-            return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
-                   capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
-                   capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
-        } else {
-            val networkInfo = connectivityManager.activeNetworkInfo
-            return networkInfo != null && networkInfo.isConnected
-        }
-    }
-    
-    private fun checkServerConnection(callback: (Boolean) -> Unit) {
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val translator = ServerTranslator()
-                translator.testConnection()
-                withContext(Dispatchers.Main) {
-                    callback(true)
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    callback(false)
-                }
-            }
-        }
-    }
-    
-    private fun showNoInternetDialog() {
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("❌ No Internet Connection")
-            .setMessage("Please enable WiFi or mobile data to use translation service.")
-            .setPositiveButton("OK") { dialog, _ ->
-                dialog.dismiss()
-            }
-            .setCancelable(false)
-            .create()
-        
-        dialog.show()
-    }
-    
-    private fun showServerErrorDialog() {
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("⚠️ Server Connection Error")
-            .setMessage("Cannot connect to translation server (72.60.130.39).\n\nPlease check:\n• Your internet connection\n• Server is running\n• No firewall blocking")
-            .setPositiveButton("OK") { dialog, _ ->
-                dialog.dismiss()
-            }
-            .setCancelable(false)
-            .create()
-        
-        dialog.show()
-    }
-
-    data class Language(val name: String, val code: String)
 }

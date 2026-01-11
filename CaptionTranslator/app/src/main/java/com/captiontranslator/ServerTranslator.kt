@@ -19,11 +19,11 @@ class ServerTranslator {
     companion object {
         private const val TAG = "ServerTranslator"
         
-        // Server configuration (obfuscated in production)
+        // Server configuration - Special APK key for internal audio mode
         private const val SERVER_URL = "http://72.60.130.39"
-        private const val API_KEY = "translation-key-2026-secure-abc123"
+        private const val API_KEY = "mobile-internal-audio-key-2026-xyz789"
         private const val SECRET_KEY = "vps-translation-server-secret-key-2026-change-this"
-        private const val TIMEOUT_SECONDS = 15L
+        private const val TIMEOUT_SECONDS = 20L
     }
     
     private val client = OkHttpClient.Builder()

@@ -1,288 +1,205 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true">
+    android:orientation="vertical"
+    android:padding="20dp"
+    android:background="#FAFAFA">
 
+    <!-- Header -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="24dp">
+        android:gravity="center"
+        android:padding="16dp"
+        android:background="#FFFFFF"
+        android:elevation="2dp"
+        android:layout_marginBottom="20dp">
 
-        <!-- App Title -->
         <TextView
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Live Caption Translator"
-            android:textSize="28sp"
+            android:text="🌍 Live Caption Translator"
+            android:textSize="26sp"
             android:textStyle="bold"
-            android:textColor="#1976D2"
-            android:gravity="center"
-            android:layout_marginBottom="8dp" />
+            android:textColor="#1E88E5" />
 
         <TextView
-            android:layout_width="match_parent"
+            android:id="@+id/textViewServerStatus"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Real-time speech translation for videos, calls, and games"
-            android:textSize="14sp"
-            android:gravity="center"
-            android:textColor="#666666"
-            android:layout_marginBottom="24dp" />
-
-        <!-- Service Toggle -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:cardElevation="4dp"
-            app:cardCornerRadius="12dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:padding="16dp"
-                android:gravity="center_vertical">
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Translation Service"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Enable to start translating"
-                        android:textSize="14sp"
-                        android:textColor="#666666" />
-                </LinearLayout>
-
-                <Switch
-                    android:id="@+id/toggleService"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Audio Source Selection -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:cardElevation="4dp"
-            app:cardCornerRadius="12dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="🔊 Audio Source"
-                    android:textSize="18sp"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="16dp" />
-
-                <RadioGroup
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical">
-
-                    <RadioButton
-                        android:id="@+id/radioMicrophone"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="🎤 Microphone (for speaking)"
-                        android:textSize="16sp"
-                        android:padding="12dp"
-                        android:checked="true" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="• Best for: Live conversations, calls\n• Captures: Your voice and nearby sounds"
-                        android:textSize="12sp"
-                        android:textColor="#666666"
-                        android:paddingStart="48dp"
-                        android:paddingEnd="12dp"
-                        android:paddingBottom="8dp" />
-
-                    <RadioButton
-                        android:id="@+id/radioInternalAudio"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="🔊 Internal Audio (for videos) 🆕"
-                        android:textSize="16sp"
-                        android:padding="12dp" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="• Best for: YouTube, Netflix, games\n• Captures: Video/app audio directly\n• Requires: Android 10+ and permission"
-                        android:textSize="12sp"
-                        android:textColor="#666666"
-                        android:paddingStart="48dp"
-                        android:paddingEnd="12dp" />
-                </RadioGroup>
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Language Settings -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:cardElevation="4dp"
-            app:cardCornerRadius="12dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="⚙️ Language Settings"
-                    android:textSize="18sp"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="16dp" />
-
-                <!-- Source Language -->
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Source Language"
-                    android:textSize="14sp"
-                    android:textColor="#666666"
-                    android:layout_marginBottom="8dp" />
-
-                <Spinner
-                    android:id="@+id/spinnerSourceLang"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:padding="12dp"
-                    android:background="@android:drawable/btn_dropdown"
-                    android:layout_marginBottom="16dp" />
-
-                <!-- Arrow -->
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="⬇️"
-                    android:textSize="24sp"
-                    android:gravity="center"
-                    android:layout_marginBottom="16dp" />
-
-                <!-- Target Language -->
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Target Language"
-                    android:textSize="14sp"
-                    android:textColor="#666666"
-                    android:layout_marginBottom="8dp" />
-
-                <Spinner
-                    android:id="@+id/spinnerTargetLang"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:padding="12dp"
-                    android:background="@android:drawable/btn_dropdown" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Display Settings -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:cardElevation="4dp"
-            app:cardCornerRadius="12dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="🎨 Display Settings"
-                    android:textSize="18sp"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="16dp" />
-
-                <!-- Text Size -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="8dp">
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Caption Text Size"
-                        android:textSize="14sp" />
-
-                    <TextView
-                        android:id="@+id/textViewTextSize"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="24sp"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        android:textColor="#1976D2" />
-                </LinearLayout>
-
-                <SeekBar
-                    android:id="@+id/seekBarTextSize"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:max="30"
-                    android:progress="12" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Test Button -->
-        <Button
-            android:id="@+id/btnTestCaption"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="🧪 Test Caption Display"
-            android:textSize="16sp"
-            android:padding="16dp"
-            android:backgroundTint="#4CAF50" />
-
-        <!-- Info -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="ℹ️ Works with YouTube, Netflix, PUBG, WhatsApp calls, and all apps!"
-            android:textSize="12sp"
-            android:textColor="#666666"
-            android:gravity="center"
-            android:layout_marginTop="24dp"
-            android:padding="8dp"
-            android:background="#F5F5F5" />
-
+            android:layout_marginTop="8dp"
+            android:text="● Connecting to server..."
+            android:textSize="13sp"
+            android:textColor="#757575" />
     </LinearLayout>
-</ScrollView>
+
+    <!-- Language Selection -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="16dp"
+        android:background="#FFFFFF"
+        android:elevation="2dp"
+        android:layout_marginBottom="16dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:layout_marginEnd="8dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="From"
+                android:textSize="12sp"
+                android:textColor="#9E9E9E"
+                android:layout_marginBottom="4dp" />
+
+            <Spinner
+                android:id="@+id/spinnerSourceLang"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:background="@android:drawable/btn_dropdown"
+                android:padding="8dp" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="→"
+            android:textSize="28sp"
+            android:textColor="#1E88E5"
+            android:layout_gravity="center"
+            android:layout_marginHorizontal="8dp" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:layout_marginStart="8dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="To"
+                android:textSize="12sp"
+                android:textColor="#9E9E9E"
+                android:layout_marginBottom="4dp" />
+
+            <Spinner
+                android:id="@+id/spinnerTargetLang"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:background="@android:drawable/btn_dropdown"
+                android:padding="8dp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Caption Size -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:background="#FFFFFF"
+        android:elevation="2dp"
+        android:layout_marginBottom="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Caption Size"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:textColor="#424242" />
+
+            <TextView
+                android:id="@+id/textViewTextSize"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="24sp"
+                android:textSize="14sp"
+                android:textColor="#1E88E5"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <SeekBar
+            android:id="@+id/seekBarTextSize"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:max="30"
+            android:progress="12" />
+    </LinearLayout>
+
+    <!-- Service Toggle -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="20dp"
+        android:background="#1E88E5"
+        android:elevation="4dp"
+        android:layout_marginBottom="16dp"
+        android:gravity="center_vertical">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Live Translation"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF" />
+
+            <TextView
+                android:id="@+id/textViewServiceStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Tap to start"
+                android:textSize="13sp"
+                android:textColor="#BBDEFB" />
+        </LinearLayout>
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/toggleService"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
+
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <!-- Test Button -->
+    <Button
+        android:id="@+id/btnTestCaption"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="🧪 Test Caption"
+        android:textSize="16sp"
+        android:textColor="#FFFFFF"
+        android:background="#43A047"
+        android:textStyle="bold" />
+
+</LinearLayout>
