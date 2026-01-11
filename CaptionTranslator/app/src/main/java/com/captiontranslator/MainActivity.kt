@@ -2,9 +2,12 @@ package com.captiontranslator
 
 import android.Manifest
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -14,6 +17,10 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
 
@@ -141,17 +148,32 @@ class MainActivity : AppCompatActivity() {
         
         toggleService.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
-                val audioSource = getSharedPreferences("settings", MODE_PRIVATE)
-                    .getString("audio_source", "microphone") ?: "microphone"
+                // Check internet connection first
+                if (!isInternetAvailable()) {
+                    toggleService.isChecked = false
+                    showNoInternetDialog()
+                    return@setOnCheckedChangeListener
+                }
                 
-                if (audioSource == "internal" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    requestMediaProjection()
-                } else {
-                    if (hasAllPermissions()) {
-                        startCaptionService()
-                    } else {
+                // Check VPS server connection
+                checkServerConnection { connected ->
+                    if (!connected) {
                         toggleService.isChecked = false
-                        checkPermissions()
+                        showServerErrorDialog()
+                    } else {
+                        val audioSource = getSharedPreferences("settings", MODE_PRIVATE)
+                            .getString("audio_source", "microphone") ?: "microphone"
+                        
+                        if (audioSource == "internal" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            requestMediaProjection()
+                        } else {
+                            if (hasAllPermissions()) {
+                                startCaptionService()
+                            } else {
+                                toggleService.isChecked = false
+                                checkPermissions()
+                            }
+                        }
                     }
                 }
             } else {
@@ -268,6 +290,62 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "Audio permission required for speech recognition", Toast.LENGTH_LONG).show()
             }
         }
+    }
+
+    private fun isInternetAvailable(): Boolean {
+        val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val network = connectivityManager.activeNetwork ?: return false
+            val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+            return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                   capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                   capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+        } else {
+            val networkInfo = connectivityManager.activeNetworkInfo
+            return networkInfo != null && networkInfo.isConnected
+        }
+    }
+    
+    private fun checkServerConnection(callback: (Boolean) -> Unit) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val translator = ServerTranslator()
+                translator.testConnection()
+                withContext(Dispatchers.Main) {
+                    callback(true)
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    callback(false)
+                }
+            }
+        }
+    }
+    
+    private fun showNoInternetDialog() {
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("❌ No Internet Connection")
+            .setMessage("Please enable WiFi or mobile data to use translation service.")
+            .setPositiveButton("OK") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .setCancelable(false)
+            .create()
+        
+        dialog.show()
+    }
+    
+    private fun showServerErrorDialog() {
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("⚠️ Server Connection Error")
+            .setMessage("Cannot connect to translation server (72.60.130.39).\n\nPlease check:\n• Your internet connection\n• Server is running\n• No firewall blocking")
+            .setPositiveButton("OK") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .setCancelable(false)
+            .create()
+        
+        dialog.show()
     }
 
     data class Language(val name: String, val code: String)

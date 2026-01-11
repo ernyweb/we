@@ -200,8 +200,15 @@ class CaptionService : Service() {
         
         Log.d(TAG, "Speech recognition is available, creating recognizer...")
 
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
-        speechRecognizer?.setRecognitionListener(object : RecognitionListener {
+        try {
+            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
+            if (speechRecognizer == null) {
+                Log.e(TAG, "Failed to create speech recognizer")
+                textViewCaption?.text = "❌ Speech recognition failed to initialize"
+                return
+            }
+            
+            speechRecognizer?.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
                 Log.d(TAG, "Ready for speech")
                 isListening = true
@@ -279,6 +286,10 @@ class CaptionService : Service() {
         })
 
         startListening()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating speech recognizer", e)
+            textViewCaption?.text = "❌ Speech recognition error: ${e.message}"
+        }
     }
 
     private fun startListening() {
