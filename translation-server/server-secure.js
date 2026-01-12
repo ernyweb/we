@@ -239,18 +239,22 @@ app.get('/translate-:from-:text-to-:to', requireApiKey, (req, res) => {
   res.json(signResponse(result));
 });
 
-// JSON translation (POST with signature)
-app.post('/translate', requireApiKey, requireSignature, (req, res) => {
-  const { text, from, to } = req.body;
+// JSON translation (POST - API key only, no signature required)
+app.post('/translate', requireApiKey, (req, res) => {
+  const { text, from, to, source, target } = req.body;
   
-  if (!text || !from || !to) {
+  // Support both from/to and source/target
+  const sourceLanguage = (from || source || '').toUpperCase();
+  const targetLanguage = (to || target || '').toUpperCase();
+  
+  if (!text || !sourceLanguage || !targetLanguage) {
     return res.status(400).json(signResponse({
       error: 'Bad Request',
-      message: 'Missing required fields: text, from, to'
+      message: 'Missing required fields: text, source/from, target/to'
     }));
   }
   
-  const result = translate(text, from, to);
+  const result = translate(text, sourceLanguage, targetLanguage);
   res.json(signResponse(result));
 });
 

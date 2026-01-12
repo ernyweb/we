@@ -67,23 +67,18 @@ class ServerTranslator {
         to: String = "tr"
     ): String? = withContext(Dispatchers.IO) {
         try {
-            // Prepare request
+            // Prepare simple request - no signature
             val requestData = JSONObject().apply {
                 put("text", text)
-                put("from", from)
-                put("to", to)
+                put("source", from)
+                put("target", to)
             }
             
-            val timestamp = System.currentTimeMillis()
-            val signature = generateSignature(requestData.toString(), timestamp)
-            
-            // Build signed request
+            // Build request with API key only
             val requestBody = requestData.toString().toRequestBody(jsonMediaType)
             val request = Request.Builder()
                 .url("$SERVER_URL/translate")
                 .addHeader("X-API-Key", API_KEY)
-                .addHeader("X-Signature", signature)
-                .addHeader("X-Timestamp", timestamp.toString())
                 .addHeader("Content-Type", "application/json")
                 .post(requestBody)
                 .build()
@@ -96,36 +91,36 @@ class ServerTranslator {
             // Execute request
             client.newCall(request).execute().use { response ->
                 Log.d(TAG, "📥 Response code: ${response.code}")
+                val responseBody = response.body?.string() ?: ""
                 
                 if (!response.isSuccessful) {
                     Log.e(TAG, "❌ Server error: ${response.code} - ${response.message}")
+                    Log.e(TAG, "Error body: $responseBody")
                     return@withContext null
                 }
                 
-                val responseBody = response.body?.string() ?: return@withContext null
+                Log.d(TAG, "📨 Response: $responseBody")
                 val json = JSONObject(responseBody)
                 
-                // Verify response signature
+                // Parse response (no signature verification)
                 val responseData = json.getJSONObject("data")
-                val responseTimestamp = json.getLong("timestamp")
-                val responseSignature = json.getString("signature")
-                
-                if (!verifySignature(responseData.toString(), responseTimestamp, responseSignature)) {
-                    Log.e(TAG, "⚠️ Response signature verification FAILED! Possible security breach!")
-                    return@withContext null
-                }
                 
                 // Parse translation
-                if (responseData.getBoolean("success")) {
+                if (responseData.has("success") && responseData.getBoolean("success")) {
                     val translated = responseData.getString("translated")
                     val accuracy = responseData.optInt("wordsTranslated", 0).toFloat() / 
                                   responseData.optInt("totalWords", 1).toFloat()
                     
                     Log.d(TAG, "✅ Translation: '$translated' (${(accuracy * 100).toInt()}% accuracy)")
                     return@withContext translated
-                } else {
+                } else if (responseData.has("error")) {
                     Log.e(TAG, "Translation failed: ${responseData.optString("error")}")
                     return@withContext null
+                } else {
+                    // Maybe direct translation string
+                    val translated = responseData.optString("translation", responseData.toString())
+                    Log.d(TAG, "✅ Translation: '$translated'")
+                    return@withContext translated
                 }
             }
         } catch (e: java.net.UnknownHostException) {
