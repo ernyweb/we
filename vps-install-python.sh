@@ -1,35 +1,51 @@
 #!/bin/bash
-# VPS Python Translation Server Kurulumu
+# VPS Python Translation Server - Tam Kurulum
 
-echo "=== Python Translation Server Kurulumu ==="
+set -e
 
-# Python3 ve pip kontrol
+echo "╔════════════════════════════════════════════════════════╗"
+echo "║  🐍 Python Translation Server Kurulumu                ║"
+echo "╚════════════════════════════════════════════════════════╝"
+
+# Python3 kontrol
 if ! command -v python3 &> /dev/null; then
-    echo "Python3 kuruluyor..."
+    echo "📦 Python3 kuruluyor..."
     apt update
     apt install -y python3 python3-pip python3-venv
 fi
 
-# Translation server dizini
-cd /root/translation-server || exit 1
+# Dizin oluştur
+mkdir -p /root/translation-server
+cd /root/translation-server
 
-# Virtual environment oluştur
+# Dosyaları indir
+echo "📥 Dosyalar indiriliyor..."
+curl -sL https://raw.githubusercontent.com/ernyweb/we/main/translation-server/server.py -o server.py
+curl -sL https://raw.githubusercontent.com/ernyweb/we/main/translation-server/requirements.txt -o requirements.txt
+
+# Sözlükleri indir
+mkdir -p lang
+for file in en-tr tr-en en-ru ru-en en-es es-en en-fr fr-en; do
+    curl -sL https://raw.githubusercontent.com/ernyweb/we/main/translation-server/lang/${file}.json -o lang/${file}.json
+done
+
+# Virtual environment
+echo "🔧 Virtual environment oluşturuluyor..."
 python3 -m venv venv
 source venv/bin/activate
-
-# Bağımlılıkları yükle
+pip install --upgrade pip
 pip install -r requirements.txt
 
 # Eski servisleri durdur
-pkill -9 node
-pm2 kill
-systemctl stop nginx
-systemctl stop apache2
+echo "🛑 Eski servisler durduruluyor..."
+pkill -9 node 2>/dev/null || true
+pm2 kill 2>/dev/null || true
+systemctl stop nginx 2>/dev/null || true
+systemctl stop apache2 2>/dev/null || true
+systemctl stop translation-server 2>/dev/null || true
 
-# Python server'ı başlat
-chmod +x server-flask.py
-
-# Systemd service dosyası oluştur
+# Systemd service
+echo "⚙️  Systemd service oluşturuluyor..."
 cat > /etc/systemd/system/translation-server.service << 'EOF'
 [Unit]
 Description=Translation Server (Python Flask)
@@ -40,7 +56,7 @@ Type=simple
 User=root
 WorkingDirectory=/root/translation-server
 Environment="PATH=/root/translation-server/venv/bin"
-ExecStart=/root/translation-server/venv/bin/python3 /root/translation-server/server-flask.py
+ExecStart=/root/translation-server/venv/bin/python3 /root/translation-server/server.py
 Restart=always
 RestartSec=3
 
@@ -48,15 +64,27 @@ RestartSec=3
 WantedBy=multi-user.target
 EOF
 
-# Service'i başlat
+# Başlat
+echo "🚀 Server başlatılıyor..."
+chmod +x server.py
 systemctl daemon-reload
 systemctl enable translation-server
 systemctl start translation-server
 
+sleep 2
+
 echo ""
-echo "✅ Python Translation Server Başlatıldı!"
+echo "╔════════════════════════════════════════════════════════╗"
+echo "║  ✅ KURULUM TAMAMLANDI                                 ║"
+echo "╚════════════════════════════════════════════════════════╝"
 echo ""
-systemctl status translation-server --no-pager
+
+systemctl status translation-server --no-pager -l
+
 echo ""
-echo "Test et:"
-echo "curl -X POST http://localhost/translate -H 'Content-Type: application/json' -H 'X-API-Key: mobile-internal-audio-key-2026-xyz789' -d '{\"text\":\"hello\",\"source\":\"EN\",\"target\":\"TR\"}'"
+echo "📊 TEST:"
+echo "curl -X POST http://localhost/translate \\"
+echo "  -H 'Content-Type: application/json' \\"
+echo "  -H 'X-API-Key: mobile-internal-audio-key-2026-xyz789' \\"
+echo "  -d '{\"text\":\"hello\",\"source\":\"EN\",\"target\":\"TR\"}'"
+echo ""
