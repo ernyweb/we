@@ -88,12 +88,17 @@ class ServerTranslator {
                 .post(requestBody)
                 .build()
             
-            Log.d(TAG, "Translating: '$text' ($from → $to)")
+            Log.d(TAG, "🌐 Translating: '$text' ($from → $to)")
+            Log.d(TAG, "📡 URL: $SERVER_URL/translate")
+            Log.d(TAG, "🔑 API Key: ${API_KEY.take(20)}...")
+            Log.d(TAG, "📦 Request: $requestData")
             
             // Execute request
             client.newCall(request).execute().use { response ->
+                Log.d(TAG, "📥 Response code: ${response.code}")
+                
                 if (!response.isSuccessful) {
-                    Log.e(TAG, "Server error: ${response.code}")
+                    Log.e(TAG, "❌ Server error: ${response.code} - ${response.message}")
                     return@withContext null
                 }
                 
@@ -123,8 +128,17 @@ class ServerTranslator {
                     return@withContext null
                 }
             }
+        } catch (e: java.net.UnknownHostException) {
+            Log.e(TAG, "❌ DNS error: Cannot resolve $SERVER_URL", e)
+            return@withContext null
+        } catch (e: java.net.ConnectException) {
+            Log.e(TAG, "❌ Connection refused: Server not reachable at $SERVER_URL", e)
+            return@withContext null
+        } catch (e: java.net.SocketTimeoutException) {
+            Log.e(TAG, "❌ Timeout: Server took too long to respond (${TIMEOUT_SECONDS}s)", e)
+            return@withContext null
         } catch (e: Exception) {
-            Log.e(TAG, "Translation error", e)
+            Log.e(TAG, "❌ Translation error: ${e.javaClass.simpleName} - ${e.message}", e)
             return@withContext null
         }
     }
@@ -134,18 +148,14 @@ class ServerTranslator {
      */
     suspend fun testConnection(): Boolean = withContext(Dispatchers.IO) {
         try {
-            val request = Request.Builder()
-                .url("$SERVER_URL/?api_key=$API_KEY")
-                .get()
-                .build()
-            
-            client.newCall(request).execute().use { response ->
-                val success = response.isSuccessful
-                Log.d(TAG, "Connection test: ${if (success) "✅ SUCCESS" else "❌ FAILED"}")
-                return@withContext success
-            }
+            // Simple test translation
+            Log.d(TAG, "Testing VPS connection...")
+            val result = translate("test", "EN", "TR")
+            val success = result != null
+            Log.d(TAG, "Connection test: ${if (success) "✅ SUCCESS (result: $result)" else "❌ FAILED"}")
+            return@withContext success
         } catch (e: Exception) {
-            Log.e(TAG, "Connection test failed", e)
+            Log.e(TAG, "Connection test failed: ${e.message}", e)
             return@withContext false
         }
     }
