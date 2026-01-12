@@ -151,7 +151,8 @@ const translationHistory = [];
 const MAX_TRANSLATION_HISTORY = 50;
 
 function translate(text, fromLang, toLang) {
-  const key = `${fromLang}-${toLang}`;
+  // Normalize language codes to lowercase
+  const key = `${fromLang.toLowerCase()}-${toLang.toLowerCase()}`;
   const dict = translations[key];
   
   if (!dict) {
