@@ -13,11 +13,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Security Configuration
-const SERVER_SECRET = process.env.SERVER_SECRET || 'vps-translation-server-secret-key-2026-change-this';
+const SERVER_SECRET = process.env.SERVER_SECRET || 'GxKin3To18njIeQJlYzXuZI5zwf05pgE';
 const API_KEYS = new Set([
-  'translation-key-2026-secure-abc123',
-  'mobile-app-key-xyz789',
-  'mobile-internal-audio-key-2026-xyz789',  // Special key for internal audio APK
+  'eZSF1Eq2XZzecsD7zsA6rL1K',
 ]);
 
 // Load comprehensive dictionaries
